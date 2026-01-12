@@ -1,11 +1,12 @@
 import React from "react";
 
-export const BaseButton = ({children, className, theme = "primary", size = "base", onClick}: {
+export const BaseButton = ({children, className, theme = "primary", size = "base", onClick, type = "button"}: {
     children: React.ReactNode,
     className?: string,
     theme?: "primary" | "secondary" | "danger" | "success" | "warning",
     size?: "base" | "small" | "large",
-    onClick?: () => Promise<void>
+    onClick?: () => void | Promise<void>,
+    type?: "button" | "submit" | "reset"
 }) => {
 
     // add dark mode
@@ -30,7 +31,7 @@ export const BaseButton = ({children, className, theme = "primary", size = "base
 
     return (
         <button
-            type="button"
+            type={type}
             className={`flex items-center justify-center text-white font-medium ${buttonSizeClass} ${buttonTheme} ${className}`}
             onClick={onClick}
         >
