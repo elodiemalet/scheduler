@@ -1,0 +1,102 @@
+{
+  "schedule": [
+    {
+      "day": "jeudi",
+      "start_time": "09:30",
+      "end_time": "10:30",
+      "activity": "Sport",
+      "description": "Séance de fitness ou cardio pour garder la forme"
+    },
+    {
+      "day": "jeudi",
+      "start_time": "10:30",
+      "end_time": "11:00",
+      "activity": "Pause déjeuner",
+      "description": "Moment de repas et de détente"
+    },
+    {
+      "day": "jeudi",
+      "start_time": "11:00",
+      "end_time": "13:30",
+      "activity": "Projets concrets",
+      "description": "Travailler sur un projet freelance ou personnel"
+    },
+    {
+      "day": "jeudi",
+      "start_time": "13:30",
+      "end_time": "14:00",
+      "activity": "Pause déjeuner",
+      "description": "Moment de repas et de détente"
+    },
+    {
+      "day": "jeudi",
+      "start_time": "14:00",
+      "end_time": "15:30",
+      "activity": "Apprentissage",
+      "description": "Étudier une nouvelle langue ou apprendre un concept technique"
+    },
+    {
+      "day": "jeudi",
+      "start_time": "15:30",
+      "end_time": "16:00",
+      "activity": "Prospection",
+      "description": "Répondre aux emails et rechercher de nouvelles opportunités"
+    },
+    {
+      "day": "jeudi",
+      "start_time": "16:00",
+      "end_time": "17:00",
+      "activity": "Lecture",
+      "description": "Lire un livre ou approfondir un sujet d'intérêt"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "09:30",
+      "end_time": "10:30",
+      "activity": "Sport",
+      "description": "Séance de fitness ou cardio pour garder la forme"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "10:30",
+      "end_time": "11:00",
+      "activity": "Pause déjeuner",
+      "description": "Moment de repas et de détente"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "11:00",
+      "end_time": "13:30",
+      "activity": "Projets concrets",
+      "description": "Travailler sur un projet freelance ou personnel"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "13:30",
+      "end_time": "14:00",
+      "activity": "Pause déjeuner",
+      "description": "Moment de repas et de détente"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "14:00",
+      "end_time": "15:30",
+      "activity": "Apprentissage",
+      "description": "Étudier une nouvelle langue ou apprendre un concept technique"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "15:30",
+      "end_time": "16:00",
+      "activity": "Prospection",
+      "description": "Répondre aux emails et rechercher de nouvelles opportunités"
+    },
+    {
+      "day": "vendredi",
+      "start_time": "16:00",
+      "end_time": "17:00",
+      "activity": "Lecture",
+      "description": "Lire un livre ou approfondir un sujet d'intérêt"
+    }
+  ]
+}
