@@ -1,7 +1,17 @@
 export interface AppEnv {
     mongodbUri: string;
-    openaiApiKey: string;
+    llmApiKey: string;
+    llmBaseUrl: string;
+    llmModel: string;
 }
+
+/**
+ * Groq : fournisseur d'inférence compatible OpenAI, choisi pour ne pas
+ * exposer les données du planning à l'entraînement d'un modèle.
+ * Changer de fournisseur ne demande que de redéfinir ces deux variables.
+ */
+const DEFAULT_LLM_BASE_URL = 'https://api.groq.com/openai/v1';
+const DEFAULT_LLM_MODEL = 'openai/gpt-oss-120b';
 
 function required(name: string, fallback?: string): string {
     const value = process.env[name] ?? fallback;
@@ -19,7 +29,9 @@ export function getEnv(): AppEnv {
     if (!cached) {
         cached = {
             mongodbUri: required('MONGODB_URI', 'mongodb://localhost:27017/scheduler'),
-            openaiApiKey: required('OPENAI_API_KEY'),
+            llmApiKey: required('LLM_API_KEY'),
+            llmBaseUrl: required('LLM_BASE_URL', DEFAULT_LLM_BASE_URL),
+            llmModel: required('LLM_MODEL', DEFAULT_LLM_MODEL),
         };
     }
     return cached;

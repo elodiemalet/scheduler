@@ -12,16 +12,16 @@ export default function ActivityList() {
 
     // get activities from API
     const [activities, setActivities] = useState<ActivityInterface[]>([]);
-    // Fetch activities on component mount
-    useEffect(() => {
-        getActivities();
-    }, []);
-
     // function to get activities from API
     async function getActivities() {
         const response = await apiService.get<{ data: ActivityInterface[] }>('/api/activity');
         setActivities(response.data);
     }
+
+    // Fetch activities on component mount
+    useEffect(() => {
+        getActivities();
+    }, []);
 
     // function to delete an activity
     async function deleteActivity(index: string | null | undefined) {

@@ -1,7 +1,7 @@
 export default function BaseCard({children, title}: { children: React.ReactNode, title?: string }) {
     return (
         <div
-            className="max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+            className="max-w-sm p-6 bg-white border border-gray-200 rounded-lg shadow-xs dark:bg-gray-800 dark:border-gray-700">
             <h3 className="font-bold">
                 {title}
             </h3>

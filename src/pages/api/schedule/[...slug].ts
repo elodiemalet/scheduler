@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await Planning.findOneAndUpdate(
             {_id: planningId, "schedule._id": id},
             {$set: {"schedule.$": schedule}},
-            {new: true}
+            {returnDocument: 'after'}
         );
 
         res.status(200).json({status, schedule});

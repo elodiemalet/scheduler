@@ -223,7 +223,7 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
             </div>
         </div>
         <BaseButton
-            className=" float-right mt-4 inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:text-sm"
+            className=" float-right mt-4 inline-flex items-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-xs hover:bg-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:text-sm"
             onClick={handleSubmit}
         >
             Submit

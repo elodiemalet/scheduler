@@ -8,21 +8,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev        # dev server (Turbopack) on http://localhost:3000
 npm run build      # production build
 npm run start      # serve the production build
-npm run lint       # next lint (ESLint 9 flat config)
+npm run lint       # eslint . (ESLint 9, native flat config)
 npm test           # vitest run — the domain test suite
 npm run test:watch # vitest in watch mode
 npm test -- days   # run one module's tests by filename fragment
 ```
 
-Vitest is configured in `vitest.config.ts`: `environment: 'node'`, `include: ['src/**/*.test.ts']`, with the `@/` alias resolved from `tsconfig.json` by `vite-tsconfig-paths`. **Only the pure domain is tested** — there are no UI, API-integration, or E2E tests.
+Vitest is configured in `vitest.config.ts`: `environment: 'node'`, `include: ['src/**/*.test.ts']`, with the `@/` alias resolved from `tsconfig.json` by Vite's native `resolve.tsconfigPaths`. **Only the pure domain is tested** — there are no UI, API-integration, or E2E tests.
 
-`tsconfig.json` includes `**/*.ts`, so test files are type-checked *and* linted by `next build`. A build can therefore fail on a test file (e.g. `@typescript-eslint/no-unused-vars` on the omit-a-key destructuring idiom — see the disable comment in `parseSchedule.test.ts`).
+`tsconfig.json` includes `**/*.ts`, so test files are type-checked by `next build` and a build can fail on a test file's types. Since Next 16, `next build` no longer runs ESLint — linting is a separate `npm run lint`. The `@typescript-eslint/no-unused-vars` disable comment in `parseSchedule.test.ts` (the omit-a-key destructuring idiom) therefore only matters to `npm run lint`.
 
 A local MongoDB must be running on `mongodb://localhost:27017/scheduler` before the app will serve anything (every API route calls `dbConnect()` first).
 
+### Two version ceilings, both blocked upstream
+
+**TypeScript is pinned to 6.x, not 7.** `eslint-config-next` depends on `typescript-eslint`, whose peer
+range is `typescript: ">=4.8.4 <6.1.0"`, and TypeScript 7's native compiler does not expose the
+programmatic API typescript-eslint needs until 7.1.
+
+**ESLint is pinned to 9.x, not 10.** `eslint-config-next@16` depends on `eslint-plugin-react@^7.37`, whose
+newest published version (7.37.5) caps its peer at `eslint ^9.7` and calls `context.getFilename()`, which
+ESLint 10 removed — the lint crashes outright. No fixed version exists; the package's `next` tag is a 2018
+prerelease. Note `eslint-plugin-react` must **not** be a direct dependency: it blocks any ESLint bump with
+an `ERESOLVE` conflict, and `eslint-config-next` already bundles it.
+
+Bump either only once the upstream package declares support. Two related settings are load-bearing:
+
+- `tsconfig.json` sets `noUncheckedSideEffectImports: false`. TypeScript 6 turned that check on by default
+  and it rejects `import "./globals.css"` in `app/layout.tsx` with TS2882. Removing it breaks the build.
+  `types: ["node"]` is deliberately *not* set — TypeScript 6 defaults `types` to `[]`, but `process.env`
+  stays typed here anyway (verified, including without `next-env.d.ts`).
+- `eslint.config.mjs` re-enables `react/no-unknown-property`, which `eslint-config-next` 16 leaves off, and
+  demotes `react-hooks/set-state-in-effect` to a warning. That rule flags the two fetch-on-mount effects
+  and accepts no local rewrite — the fix is a data library or Server Components, tracked in section 10 of
+  the spec. Lint's clean baseline is **0 errors, 6 warnings**.
+
 ## What this is
 
-A weekly planner: the user defines recurring **activities** (with priority, target duration, allowed days, optional fixed time slot), and then asks GPT-4o to lay everything out into a week-long **schedule**.
+A weekly planner: the user defines recurring **activities** (with priority, target duration, allowed days, optional fixed time slot), and then asks an LLM to lay everything out into a week-long **schedule**.
 
 ## Architecture
 
@@ -61,14 +84,33 @@ Two naming rules that look inconsistent but are deliberate:
 2. `activities.map(activityToPlannable)` → a `PlannableActivity[]`. The domain can also fold external tasks in — `mergeActivitiesAndTasks` gives them priority `2`, `timeToSpendHours` `0.25`, and the one French weekday derived from their `dueDate` (falling back to today) — but no task source is wired to the planning yet.
 3. `buildDayWindows(plannable)` → per-day `{jour, heure_debut, heure_fin}`, sorted in week order. Defaults `09:00`–`18:00`, widened by the earliest `startTime` / latest `endTime` of that day's activities, then `heure_fin` is pushed back if the day's **priority-1** activities need more hours than the window offers, capped at `MAX_END_HOUR` (23) while keeping the original minutes.
 4. Sends `{jours, activites}` as a JSON string to `generateWeeklyPlanning()`.
-5. `parseSchedule(raw)` validates the response and remaps snake_case → camelCase. On `InvalidModelResponseError` the route answers **502**, not 500 — a bad model response is not a server bug. An empty response is likewise 502.
+5. `parseSchedule(raw)` validates the response and remaps snake_case → camelCase. Steps 4–5 are retried up to `GENERATION_ATTEMPTS` (2) times, because open-weight models break the output contract more often than proprietary ones. After the last failure the route answers **502**, not 500 — a bad model response is not a server bug.
 6. Saves one `Schedule` doc per slot (`new Schedule(slot)` works directly — `ScheduleSlot` already carries the schema's field names), then a `Planning` embedding those schedules.
 
 `GET` on the same route returns the most recent `Planning` (`sort({timestamp: -1})`) — this is what the home page renders. There is no "regenerate in place"; each generation appends a new `Planning`. Any other method gets 405 with `Allow: GET, POST`.
 
-### OpenAI integration
+### LLM integration
 
-`src/services/OpenAiService.ts` holds the entire system prompt inline (in French) and calls `gpt-4o` with `response_format: {type: "json_object"}`. The API key comes from `getEnv().openaiApiKey` **at module load**, so importing this module without `OPENAI_API_KEY` set throws immediately. The contract the prompt enforces:
+`src/services/LlmService.ts` holds the entire system prompt inline (in French) and calls a **chat-completions endpoint compatible with the OpenAI API**. The provider is configuration, not code — `LLM_BASE_URL`, `LLM_MODEL` and `LLM_API_KEY` are all read through `getEnv()`.
+
+Default provider is **Groq** (`https://api.groq.com/openai/v1`, `openai/gpt-oss-120b`), chosen because it serves open-weight models without training on customer data — the prompt carries the user's weekly routine. `gpt-oss-120b` is an open-weight model *hosted by Groq*; nothing reaches OpenAI.
+
+The `openai` npm package is an HTTP client for the OpenAI *API shape*, not a link to OpenAI: `LlmService.ts` always passes `baseURL`, and `env.ts` defaults it to Groq, so no code path can route traffic to `api.openai.com`. What actually earns its 23 MB is the retry — 2 attempts with exponential backoff on 429/5xx/408/409, honouring `retry-after` — because `generate_weekly_planning.ts` calls the model *outside* its `try`, making the SDK the only guard against Groq rate limiting. Replacing it with `fetch` is planned for phase 5, together with the retry it would have to reimplement. Two constraints follow from targeting compatibility layers rather than OpenAI itself:
+
+- `content` must be a **plain string**, not an array of `{type, text}` parts.
+- Use `max_tokens`, not `max_completion_tokens`.
+
+The client is built lazily on first generation, not at module load: `GET /api/generate_weekly_planning` must keep working when no LLM key is configured, since reading a stored planning never calls the model.
+
+`temperature` is 0.3 — the task is constrained (fixed blocks, allowed days, no overlap), not creative.
+
+**Groq's catalogue churns.** Model names are retired without much notice; `llama-3.3-70b-versatile` already disappeared. When generation starts returning `404 model_not_found`, list what is actually available:
+
+```bash
+node --env-file=.env -e "fetch(process.env.LLM_BASE_URL+'/models',{headers:{Authorization:'Bearer '+process.env.LLM_API_KEY}}).then(r=>r.json()).then(d=>console.log(d.data.map(m=>m.id).sort().join('\n')))"
+```
+
+The contract the prompt enforces:
 
 - Activities with **both** `startTime` and `endTime` are fixed, uncuttable blocks.
 - An activity's `days` array restricts which days it may be placed on; empty means any day.
@@ -76,7 +118,7 @@ Two naming rules that look inconsistent but are deliberate:
 
 The prompt never names the duration field, so renaming it in `PlannableActivity` did not change the contract.
 
-Never trust this output: `parseSchedule` is the validation boundary, and also the defense against prompt injection through whatever text reaches the prompt.
+Never trust this output: `parseSchedule` is the validation boundary, and also the defense against prompt injection through whatever text reaches the prompt. Note it validates **shape only** — it does not check that a slot's day is in that activity's allowed `days`.
 
 ### Data model (Mongoose, `src/models/`)
 
@@ -88,9 +130,13 @@ Consequence of the embedding: schedules exist in two places. `POST /api/schedule
 
 Every model is exported as `mongoose.models.X || mongoose.model('X', …)` — required so Next.js hot reload doesn't redefine models.
 
+Mongoose 9 dropped the `new` option on `findOneAndUpdate`: use `returnDocument: 'after'`. Its one call site (`src/pages/api/schedule/[...slug].ts`) already does.
+
 ### Configuration and database connection
 
-`src/server/config/env.ts` exposes `getEnv(): AppEnv` (`{mongodbUri, openaiApiKey}`), read once and cached. `MONGODB_URI` falls back to `mongodb://localhost:27017/scheduler`; `OPENAI_API_KEY` is mandatory and throws a named error if absent. `.env.example` lists every variable the app reads.
+`src/server/config/env.ts` exposes `getEnv(): AppEnv` (`{mongodbUri, llmApiKey, llmBaseUrl, llmModel}`), read once and cached. `MONGODB_URI`, `LLM_BASE_URL` and `LLM_MODEL` have defaults; **`LLM_API_KEY` is mandatory** and throws a named error if absent. `.env.example` lists every variable the app reads.
+
+Values in `.env` override the code defaults, so bumping `DEFAULT_LLM_MODEL` in `env.ts` has no effect if `LLM_MODEL` is set in `.env`.
 
 `src/server/infrastructure/db/connection.ts` default-exports `dbConnect()`, which caches the Mongoose connection on `global.mongoose` — the standard Next.js pattern to survive hot reload.
 
@@ -103,7 +149,7 @@ Every model is exported as `mongoose.models.X || mongoose.model('X', …)` — r
 
 ### Styling
 
-Tailwind 3 with semantic color scales (`primary`, `secondary`, `danger`, `success`, `warning`, each 50–900) defined as CSS custom properties in `src/app/globals.css` and mapped in `tailwind.config.ts`. Use `bg-primary-500` etc. rather than raw palette colors. Shared primitives live in `src/components/uiComponents/` — `BaseButton` takes `theme` and `size` props that resolve into those scales. Dark mode is applied via `dark:` variants throughout.
+Tailwind 4, CSS-first: **there is no `tailwind.config.ts`**. The semantic color scales (`primary`, `secondary`, `danger`, `success`, `warning`, each 50–900) are CSS custom properties in `src/app/globals.css`, exposed to Tailwind by the `@theme inline` block in that same file — `inline` because the values are `var()` references the dark-mode block redefines. To add a scale, add both the `--x-500` property and its `--color-x-500` line in `@theme inline`. Sources are auto-discovered; there is no `content` array. `globals.css` also carries an `@layer base` rule restoring v3's gray-400 `::placeholder`, which v4 would otherwise render as currentColor at 50%. Use `bg-primary-500` etc. rather than raw palette colors. Shared primitives live in `src/components/uiComponents/` — `BaseButton` takes `theme` and `size` props that resolve into those scales. Dark mode is applied via `dark:` variants throughout.
 
 ## Domain conventions
 
@@ -120,4 +166,16 @@ This predates the domain extraction — the old inline code did the same arithme
 
 ## Environment
 
-`.env` (gitignored; `.env.example` is committed) provides: `MONGODB_URI`, `OPENAI_API_KEY`.
+`.env` (gitignored; `.env.example` is committed) provides: `MONGODB_URI`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
+
+Privacy is a stated requirement here: pick an LLM provider that does not train on submitted data.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

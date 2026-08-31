@@ -2,14 +2,18 @@ import {NextApiRequest, NextApiResponse} from "next";
 import Activity from "@/models/Activity";
 import dbConnect from "@/server/infrastructure/db/connection";
 import Planning from "@/models/Planning";
-import {generateWeeklyPlanning} from "@/services/OpenAiService";
+import {generateWeeklyPlanning} from "@/services/LlmService";
 import Schedule from "@/models/Schedule";
 import {ActivityInput, activityToPlannable} from "@/server/domain/planning/mergeTasks";
 import {buildDayWindows} from "@/server/domain/planning/buildDayWindows";
 import {
     InvalidModelResponseError,
     parseSchedule,
+    ScheduleSlot,
 } from "@/server/domain/planning/parseSchedule";
+
+/** Nombre d'appels au modèle avant d'abandonner sur une réponse inexploitable. */
+const GENERATION_ATTEMPTS = 2;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     await dbConnect();
@@ -29,26 +33,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const plannable = activities.map(activityToPlannable);
         const dayWindows = buildDayWindows(plannable);
 
-        const raw = await generateWeeklyPlanning(JSON.stringify({
+        const payload = JSON.stringify({
             jours: dayWindows,
             activites: plannable,
-        }));
+        });
 
-        if (!raw) {
-            res.status(502).json({error: 'Le modèle n\'a renvoyé aucune réponse'});
-            return;
+        let slots: ScheduleSlot[] | null = null;
+        let lastRejection = '';
+
+        // Un modèle ouvert échoue plus souvent à respecter le contrat de sortie
+        // qu'un modèle propriétaire ; une seconde tentative suffit en pratique.
+        for (let attempt = 1; attempt <= GENERATION_ATTEMPTS && slots === null; attempt++) {
+            const raw = await generateWeeklyPlanning(payload);
+
+            if (!raw) {
+                lastRejection = 'réponse vide';
+                console.error(`Génération, tentative ${attempt}/${GENERATION_ATTEMPTS} : ${lastRejection}`);
+                continue;
+            }
+
+            try {
+                slots = parseSchedule(raw);
+            } catch (error) {
+                if (!(error instanceof InvalidModelResponseError)) {
+                    throw error;
+                }
+                lastRejection = error.message;
+                console.error(`Génération, tentative ${attempt}/${GENERATION_ATTEMPTS} : ${lastRejection}`);
+            }
         }
 
-        let slots;
-        try {
-            slots = parseSchedule(raw);
-        } catch (error) {
-            if (error instanceof InvalidModelResponseError) {
-                console.error('Réponse du modèle rejetée:', error.message);
-                res.status(502).json({error: 'Le modèle a renvoyé un planning invalide'});
-                return;
-            }
-            throw error;
+        if (slots === null) {
+            console.error(
+                `Génération abandonnée après ${GENERATION_ATTEMPTS} tentatives. Dernier rejet : ${lastRejection}`,
+            );
+            res.status(502).json({error: 'Le modèle a renvoyé un planning invalide'});
+            return;
         }
 
         const schedules = await Promise.all(
