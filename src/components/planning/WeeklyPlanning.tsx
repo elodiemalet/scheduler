@@ -5,13 +5,12 @@ import {PlanningInterface} from "@/models/Planning";
 import Spinner from "@/components/uiComponents/Spinner";
 import DayTimeline from "@/components/planning/DayTimeline";
 import {ScheduleInterface} from "@/models/Schedule";
-import {ApiService} from "@/services/ApiService";
+import {apiService} from "@/services/ApiService";
 import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {toast} from "react-toastify";
 
 export default function WeeklyPlanning() {
 
-    const apiService = new ApiService();
 
     const [loading, setLoading] = useState(false);
     // get activities from API

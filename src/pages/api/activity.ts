@@ -1,6 +1,6 @@
 import {NextApiRequest, NextApiResponse} from 'next';
 import Activity from "@/models/Activity";
-import dbConnect from "@/middleware/database";
+import dbConnect from "@/server/infrastructure/db/connection";
 
 // Define the handler function
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

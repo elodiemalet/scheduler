@@ -24,18 +24,9 @@ export interface ApiServiceInterface {
 }
 
 export class ApiService {
-    private baseUrl: string;
-
-    constructor(baseUrl: string | undefined = undefined) {
-        this.baseUrl = baseUrl || process.env.API_URL || 'http://localhost:3000';
-    }
-
-    private buildUrl(endpoint: string) {
-        return `${this.baseUrl}${endpoint}`;
-    }
 
     async request<Res>(endpoint: string, options: RequestOptions = {}): Promise<Res> {
-        const url = this.buildUrl(endpoint);
+        const url = endpoint;
         const {method = 'GET', headers = {}, body} = options;
         const requestBody: RequestBody<Record<string, string> | string> | undefined = body ? body : undefined;
         let contentBody: string | undefined = undefined;
@@ -80,9 +71,8 @@ export class ApiService {
     }
 
     public async put<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string>): Promise<Res> {
-
         return this.request<Res>(endpoint, {
-            method: 'POST',
+            method: 'PUT',
             body: data as RequestBody<Record<string, string> | string>,
             headers: headers,
         });

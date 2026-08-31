@@ -1,5 +1,5 @@
 import {NextApiRequest, NextApiResponse} from "next";
-import dbConnect from "@/middleware/database";
+import dbConnect from "@/server/infrastructure/db/connection";
 import Activity from "@/models/Activity";
 
 

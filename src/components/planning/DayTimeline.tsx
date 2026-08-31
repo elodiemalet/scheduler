@@ -2,7 +2,7 @@
 
 import {ScheduleInterface} from "@/models/Schedule";
 import {PlanningInterface} from "@/models/Planning";
-import {ApiService} from "@/services/ApiService";
+import {apiService} from "@/services/ApiService";
 
 export default function DayTimeline({scheduleList, planning, onScheduleListUpdatedAction}: {
     planning: PlanningInterface,
@@ -10,7 +10,6 @@ export default function DayTimeline({scheduleList, planning, onScheduleListUpdat
     onScheduleListUpdatedAction: () => void
 }) {
 
-    const apiService = new ApiService();
 
     function changeStatus(schedule: ScheduleInterface) {
         const newStatus = schedule.status === "pending" ? "done" : "pending";
@@ -25,25 +24,7 @@ export default function DayTimeline({scheduleList, planning, onScheduleListUpdat
     }
 
     function getBgColor(schedule: ScheduleInterface) {
-        const {status, startTime} = schedule;
-
-        switch (status) {
-            case "done":
-                return "bg-green-500";
-            case "pending":
-                return "bg-indigo-500";
-        }
-
-        const date = new Date(startTime);
-        const today = new Date();
-
-        if (date.getTime() === today.getTime()) {
-            return "bg-indigo-500";
-        } else if (date.getTime() > today.getTime()) {
-            return "bg-green-500";
-        }
-
-        return "bg-red-500";
+        return schedule.status === "done" ? "bg-green-500" : "bg-indigo-500";
     }
 
     return (

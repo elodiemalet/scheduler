@@ -4,7 +4,6 @@ import "./globals.css";
 import TopNavigation from "@/components/layout/TopNavigation";
 import LeftSidebar from "@/components/layout/LeftSidebar";
 import {ToastContainer} from "react-toastify";
-import ReduxProvider from "@/app/reduxProvider";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -29,15 +28,13 @@ export default function RootLayout({children,}: Readonly<{
         <body
             className={`${geistSans.variable} ${geistMono.variable} antialiased  dark:bg-gray-900 h-screen`}
         >
-        <ReduxProvider>
-            <TopNavigation/>
-            <LeftSidebar/>
-            <main
-                className="flex flex-col gap-8 row-start-2 items-center sm:items-start sm:ml-64 mt-14 h-full">
-                {children}
-            </main>
-            <ToastContainer icon={false}/>
-        </ReduxProvider>
+        <TopNavigation/>
+        <LeftSidebar/>
+        <main
+            className="flex flex-col gap-8 row-start-2 items-center sm:items-start sm:ml-64 mt-14 h-full">
+            {children}
+        </main>
+        <ToastContainer icon={false}/>
         </body>
         </html>
     );

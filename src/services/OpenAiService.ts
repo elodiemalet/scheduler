@@ -1,7 +1,8 @@
 import OpenAI from "openai";
+import {getEnv} from "@/server/config/env";
 
 const openAiService = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
+    apiKey: getEnv().openaiApiKey,
 });
 
 // function to generate a weekly planning

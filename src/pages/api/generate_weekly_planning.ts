@@ -1,6 +1,6 @@
 import {NextApiRequest, NextApiResponse} from "next";
 import Activity, {ActivityInterface} from "@/models/Activity";
-import dbConnect from "@/middleware/database";
+import dbConnect from "@/server/infrastructure/db/connection";
 import Planning from "@/models/Planning";
 import {generateWeeklyPlanning} from "@/services/OpenAiService";
 import Schedule from "@/models/Schedule";
@@ -87,7 +87,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
             console.log('Planning generated:', planning);
 
-            const weeklySchedule = planning.schedule?.map(async (schedule: any) => {
+            const weeklySchedule = planning.schedule?.map(async (schedule: Record<string, string>) => {
 
                 const scheduleModel = new Schedule({
                     day: schedule.day,

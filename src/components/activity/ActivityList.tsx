@@ -2,14 +2,13 @@
 
 import {ActivityInterface} from "@/models/Activity";
 import {useEffect, useState} from "react";
-import {ApiService} from "@/services/ApiService";
+import {apiService} from "@/services/ApiService";
 import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {toast} from "react-toastify";
 import Link from "next/link";
 
 export default function ActivityList() {
 
-    const apiService = new ApiService();
 
     // get activities from API
     const [activities, setActivities] = useState<ActivityInterface[]>([]);
@@ -20,9 +19,8 @@ export default function ActivityList() {
 
     // function to get activities from API
     async function getActivities() {
-        const response = await fetch('/api/activity');
-        const data = await response.json();
-        setActivities(data.data);
+        const response = await apiService.get<{ data: ActivityInterface[] }>('/api/activity');
+        setActivities(response.data);
     }
 
     // function to delete an activity
