@@ -66,7 +66,7 @@ Add new UI under `src/app/`, new endpoints under `src/pages/api/`, new business 
 | `days.ts` | `WEEKDAYS`, `Weekday`, `isWeekday`, `weekdayFromDate`, `sortWeekdays` |
 | `time.ts` | `TIME_PATTERN`, `isValidTime`, `parseTimeToMinutes`, `formatMinutesToTime` |
 | `mergeTasks.ts` | `PlannableActivity`, `ActivityInput`, `ExternalTaskInput`, `activityToPlannable`, `externalTaskToPlannable`, `mergeActivitiesAndTasks` |
-| `buildDayWindows.ts` | `DayWindow`, `buildDayWindows`, `DEFAULT_START_TIME`, `DEFAULT_END_TIME`, `MAX_END_HOUR` |
+| `buildDayWindows.ts` | `DayWindow`, `buildDayWindows`, `DEFAULT_START_TIME`, `DEFAULT_END_TIME` |
 | `parseSchedule.ts` | `ScheduleSlot`, `parseSchedule`, `InvalidModelResponseError` |
 
 Two naming rules that look inconsistent but are deliberate:
@@ -82,10 +82,10 @@ Two naming rules that look inconsistent but are deliberate:
 
 1. Loads all `Activity` docs, `.lean()`.
 2. `activities.map(activityToPlannable)` → a `PlannableActivity[]`. The domain can also fold external tasks in — `mergeActivitiesAndTasks` gives them priority `2`, `timeToSpendHours` `0.25`, and the one French weekday derived from their `dueDate` (falling back to today) — but no task source is wired to the planning yet.
-3. `buildDayWindows(plannable)` → per-day `{jour, heure_debut, heure_fin}`, sorted in week order. Defaults `09:00`–`18:00`, widened by the earliest `startTime` / latest `endTime` of that day's activities, then `heure_fin` is pushed back if the day's **priority-1** activities need more hours than the window offers, capped at `MAX_END_HOUR` (23) while keeping the original minutes.
+3. `buildDayWindows(plannable)` → per-day `{jour, heure_debut, heure_fin}`, sorted in week order. Defaults `09:00`–`18:00`, **widened but never narrowed** by the earliest `startTime` / latest `endTime` of that day's activities — they are a floor, so a fixed 07:00–09:00 block opens the day earlier without closing it at 09:00. The window never stretches to fit the requested durations: what does not fit is the model's problem to arbitrate by priority.
 4. Sends `{jours, activites}` as a JSON string to `generateWeeklyPlanning()`.
 5. `parseSchedule(raw)` validates the response and remaps snake_case → camelCase. Steps 4–5 are retried up to `GENERATION_ATTEMPTS` (2) times, because open-weight models break the output contract more often than proprietary ones. After the last failure the route answers **502**, not 500 — a bad model response is not a server bug.
-6. Saves one `Schedule` doc per slot (`new Schedule(slot)` works directly — `ScheduleSlot` already carries the schema's field names), then a `Planning` embedding those schedules.
+6. Saves a single `Planning` embedding the slots directly (`ScheduleSlot` already carries the schema's field names, so no adapter is needed). Nothing is written outside `plannings`.
 
 `GET` on the same route returns the most recent `Planning` (`sort({timestamp: -1})`) — this is what the home page renders. There is no "regenerate in place"; each generation appends a new `Planning`. Any other method gets 405 with `Allow: GET, POST`.
 
@@ -123,10 +123,10 @@ Never trust this output: `parseSchedule` is the validation boundary, and also th
 ### Data model (Mongoose, `src/models/`)
 
 - `Activity` — user-defined recurring work. `days: string[]` of French weekday names.
-- `Schedule` — one time block (`day`, `startTime`, `endTime`, `activity`, `description`, `status` of `pending`/`done`).
-- `Planning` — a generated week. **Embeds** copies of `ActivitySchema` and `ScheduleSchema` as subdocuments rather than referencing them.
+- `Schedule` — **not a collection.** `src/models/Schedule.ts` exports only `ScheduleSchema` and `ScheduleInterface`, the embedded subdocument type for `Planning.schedule` (`day`, `startTime`, `endTime`, `activity`, `description`, `status` of `pending`/`done`). There is no `Schedule` model: a slot has no life outside its planning.
+- `Planning` — a generated week, and a historical snapshot. It embeds `ScheduleSchema` subdocuments for the slots, and `PlannedActivitySchema` copies of **the set actually sent to the model**, carrying `timeToSpendHours` (plus the `source` and `externalId` of any external task). Deliberately not `ActivitySchema`: a snapshot records what was planned, not a living activity, so editing an activity never mutates past plannings.
 
-Consequence of the embedding: schedules exist in two places. `POST /api/schedule/status` updates the copy embedded in `Planning` (via `$set: {"schedule.$": schedule}`) and does not persist the standalone `Schedule` document, so **the embedded copy inside `Planning` is what the UI reads and is the effective source of truth**.
+Slots exist in exactly one place: embedded in `Planning`. `POST /api/schedule/status` updates the subdocument atomically (`$set: {"schedule.$.status": status}`) and 404s when `findOneAndUpdate` matches nothing. Subdocuments carry their own `_id`, which is what the UI sends back.
 
 Every model is exported as `mongoose.models.X || mongoose.model('X', …)` — required so Next.js hot reload doesn't redefine models.
 
@@ -153,14 +153,14 @@ Tailwind 4, CSS-first: **there is no `tailwind.config.ts`**. The semantic color 
 
 ## Domain conventions
 
-- **Days are lowercase French strings** (`"lundi"` … `"dimanche"`) and act as join keys across the whole stack: `Activity.days`, the OpenAI prompt input and output, `Planning.days`, per-day filtering in `WeeklyPlanning`, and the day checkboxes in `ActivityForm`. `src/server/domain/planning/days.ts` is the **single source** — import `WEEKDAYS` / `sortWeekdays` rather than writing the array again, and note `sortWeekdays` silently drops unknown values and never mutates its input.
+- **Days are lowercase French strings** (`"lundi"` … `"dimanche"`) and act as join keys across the whole stack: `Activity.days`, the OpenAI prompt input and output, `Planning.days`, per-day filtering in `WeeklyPlanning`, and the day checkboxes in `ActivityForm`. `src/server/domain/planning/days.ts` is the **single source** — import `WEEKDAYS` / `sortWeekdays` rather than writing the array again, and note `sortWeekdays` silently drops unknown values and never mutates its input. `ActivitySchema.days` and `PlannedActivitySchema.days` are `{type: [String], enum: WEEKDAYS}` — the schemas import `WEEKDAYS` from the domain. That direction is fine (the domain has no dependencies); the reverse would break its purity.
 - Times are `"HH:MM"` strings, not Date objects. Parse and format them through `time.ts`; `TIME_PATTERN` requires zero-padding, so `"9:30"` is invalid.
-- Priority is numeric and **inverted**: `1` = most important, `3` = least. Only priority-1 activities can stretch a day's window.
+- Priority is numeric and **inverted**: `1` = most important, `3` = least. Priority only guides the model's arbitration — it has no effect on the day windows, which depend solely on fixed times.
 - User-facing copy is French. Identifiers are English; comments, test names and thrown error messages are French. Domain tests assert on those messages (`/heure invalide/i`, `/créneau 2/i`), so rewording an error breaks a test.
 
 ### Known trap: the unit of `timeToSpend`
 
-`buildDayWindows` compares `timeToSpendHours` against a number of **hours**, and `mergeTasks` maps `Activity.timeToSpend` onto it unchanged. But the activities actually in the database store **minutes** (`90`, `120`, `60`, `45`…). So a priority-1 activity with `timeToSpend: 90` reads as 90 hours, blows past any window, and pushes `heure_fin` to the 23:00 cap.
+`mergeTasks` maps `Activity.timeToSpend` onto `timeToSpendHours` unchanged, and the prompt says hours. But the activities actually in the database store **minutes** (`90`, `120`, `60`, `45`…), so `timeToSpend: 90` reaches the model as 90 hours. Since `buildDayWindows` no longer reads durations at all, this no longer distorts the day windows — the only remaining damage is that the model plans against nonsense durations.
 
 This predates the domain extraction — the old inline code did the same arithmetic — and reconciling it requires either a data migration or a documented unit change. Don't "fix" one side in isolation; both the stored values and `EXTERNAL_TASK_DEFAULT_HOURS = 0.25` have to move together.
 

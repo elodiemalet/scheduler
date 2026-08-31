@@ -3,7 +3,6 @@ import Activity from "@/models/Activity";
 import dbConnect from "@/server/infrastructure/db/connection";
 import Planning from "@/models/Planning";
 import {generateWeeklyPlanning} from "@/services/LlmService";
-import Schedule from "@/models/Schedule";
 import {ActivityInput, activityToPlannable} from "@/server/domain/planning/mergeTasks";
 import {buildDayWindows} from "@/server/domain/planning/buildDayWindows";
 import {
@@ -71,10 +70,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return;
         }
 
-        const schedules = await Promise.all(
-            slots.map((slot) => new Schedule(slot).save()),
-        );
-
         const weekStartDate = new Date();
         weekStartDate.setDate(weekStartDate.getDate() - weekStartDate.getDay() + 1);
         const weekEndDate = new Date(weekStartDate);
@@ -85,8 +80,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await new Planning({
             name: `Planning du ${dates}`,
             days: dayWindows.map((window) => window.jour),
-            activities: activities,
-            schedule: schedules,
+            activities: plannable,
+            schedule: slots,
         }).save();
 
         res.status(200).json({schedule: slots});

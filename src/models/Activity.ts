@@ -15,9 +15,9 @@ export interface ActivityInterface {
 }
 
 import mongoose from 'mongoose';
+import {WEEKDAYS} from '@/server/domain/planning/days';
 
 export const ActivitySchema = new mongoose.Schema({
-    index: String,
     name: {
         type: String,
         required: true,
@@ -32,7 +32,7 @@ export const ActivitySchema = new mongoose.Schema({
     isActive: Boolean,
     timeToSpend: Number,
     timeAlreadySpent: Number,
-    days: Array<string>,
+    days: {type: [String], enum: WEEKDAYS, default: []},
 });
 
 export default mongoose.models.Activity || mongoose.model('Activity', ActivitySchema);

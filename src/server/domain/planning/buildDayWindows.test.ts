@@ -26,6 +26,24 @@ describe('buildDayWindows', () => {
         expect(buildDayWindows([])).toEqual([]);
     });
 
+    it('ne repousse jamais la fin, même si les activités ne tiennent pas', () => {
+        // La fenêtre ne dépend que des horaires fixes. Ce qui ne rentre pas est
+        // arbitré par le modèle selon les priorités, pas en dilatant la journée.
+        const windows = buildDayWindows([
+            activity({priority: 1, timeToSpendHours: 40}),
+        ]);
+        expect(windows[0].heure_fin).toBe('18:00');
+    });
+
+    it('n\'utilise les horaires par défaut que comme plancher', () => {
+        // Un bloc fixe matinal élargit le début sans rétrécir la fin : sans ça,
+        // une activité 07:00-09:00 réduirait la journée entière à deux heures.
+        const windows = buildDayWindows([
+            activity({startTime: '07:00', endTime: '09:00'}),
+        ]);
+        expect(windows[0]).toEqual({jour: 'lundi', heure_debut: '07:00', heure_fin: '18:00'});
+    });
+
     it('retient le début le plus tôt et la fin la plus tardive', () => {
         const windows = buildDayWindows([
             activity({startTime: '10:00', endTime: '12:00'}),
@@ -52,46 +70,6 @@ describe('buildDayWindows', () => {
         expect(windows).toHaveLength(1);
     });
 
-    it('repousse la fin quand les activités de priorité 1 débordent', () => {
-        // Fenêtre par défaut 09:00-18:00 = 9 h ; 12 h nécessaires → +3 h.
-        const windows = buildDayWindows([
-            activity({priority: 1, timeToSpendHours: 12}),
-        ]);
-        expect(windows[0].heure_fin).toBe('21:00');
-    });
-
-    it('ne repousse pas la fin pour des activités de priorité autre que 1', () => {
-        // Régression : c'est ce filtre qui empêche les tâches externes,
-        // toutes en priorité 2, de dilater la journée.
-        const windows = buildDayWindows([
-            activity({priority: 2, timeToSpendHours: 20}),
-        ]);
-        expect(windows[0].heure_fin).toBe('18:00');
-    });
-
-    it('plafonne la fin repoussée à l\'heure maximale', () => {
-        const windows = buildDayWindows([
-            activity({priority: 1, timeToSpendHours: 40}),
-        ]);
-        expect(windows[0].heure_fin).toBe('23:00');
-    });
-
-    it('conserve les minutes de la fin d\'origine lors du plafonnement', () => {
-        const windows = buildDayWindows([
-            activity({priority: 1, timeToSpendHours: 40, startTime: '09:00', endTime: '18:30'}),
-        ]);
-        expect(windows[0].heure_fin).toBe('23:30');
-    });
-
-    it('cumule le temps de plusieurs activités de priorité 1', () => {
-        // 5 h + 6 h = 11 h pour 9 h disponibles → +2 h.
-        const windows = buildDayWindows([
-            activity({priority: 1, timeToSpendHours: 5}),
-            activity({priority: 1, timeToSpendHours: 6}),
-        ]);
-        expect(windows[0].heure_fin).toBe('20:00');
-    });
-
     it('ignore les heures mal formées au lieu de planter', () => {
         const windows = buildDayWindows([activity({startTime: '9h00', endTime: ''})]);
         expect(windows[0].heure_debut).toBe('09:00');
@@ -103,7 +81,7 @@ describe('buildDayWindows', () => {
             activity({days: ['mardi']}),
         ]);
         expect(windows).toEqual([
-            {jour: 'lundi', heure_debut: '07:00', heure_fin: '12:00'},
+            {jour: 'lundi', heure_debut: '07:00', heure_fin: '18:00'},
             {jour: 'mardi', heure_debut: '09:00', heure_fin: '18:00'},
         ]);
     });

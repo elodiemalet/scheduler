@@ -1,6 +1,5 @@
 import {NextApiRequest, NextApiResponse} from "next";
 import dbConnect from "@/server/infrastructure/db/connection";
-import Schedule from "@/models/Schedule";
 import Planning from "@/models/Planning";
 
 export interface UpdateScheduleBody {
@@ -19,20 +18,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const body: UpdateScheduleBody = req.body;
         const {status, id, planningId} = body;
 
-        const schedule = await Schedule.findOne({_id: id});
-        if (!schedule) {
+        // Mise à jour atomique du sous-document : il n'existe plus de collection
+        // `schedules`, la copie embarquée dans Planning est la seule source.
+        const planning = await Planning.findOneAndUpdate(
+            {_id: planningId, "schedule._id": id},
+            {$set: {"schedule.$.status": status}},
+            {returnDocument: 'after'},
+        );
+
+        if (!planning) {
             res.status(404).json({message: 'Schedule not found'});
             return;
         }
 
-        // Update schedule status
-        schedule.status = status;
-
-        await Planning.findOneAndUpdate(
-            {_id: planningId, "schedule._id": id},
-            {$set: {"schedule.$": schedule}},
-            {returnDocument: 'after'}
-        );
+        // `.id()` est l'accesseur de sous-document des DocumentArray Mongoose.
+        const schedule = planning.schedule.id(id);
 
         res.status(200).json({status, schedule});
         return;

@@ -17,7 +17,6 @@ export interface ScheduleInterface {
 }
 
 export const ScheduleSchema = new mongoose.Schema({
-    index: String,
     day: {type: String, required: true},
     startTime: {type: String, required: true},
     endTime: {type: String, required: true},
@@ -26,5 +25,3 @@ export const ScheduleSchema = new mongoose.Schema({
     priority: {type: Number, default: 1},
     status: {type: String, default: SCHEDULE_STATUS.pending},
 });
-
-export default mongoose.models.Schedule || mongoose.model('Schedule', ScheduleSchema);
