@@ -6,6 +6,7 @@ import {apiService} from "@/services/ApiService";
 import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {useRouter} from "next/navigation";
 import BaseHorizontalListGroup from "@/components/uiComponents/BaseHorizontalListGroup";
+import {WEEKDAYS} from "@/server/domain/planning/days";
 
 export default function ActivityForm({activityId}: { activityId?: string }) {
 
@@ -28,15 +29,10 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
         setForm((previous) => ({...previous, [key]: value}));
     }
 
-    const daysOptions = [
-        {label: 'Lundi', value: 'lundi'},
-        {label: 'Mardi', value: 'mardi'},
-        {label: 'Mercredi', value: 'mercredi'},
-        {label: 'Jeudi', value: 'jeudi'},
-        {label: 'Vendredi', value: 'vendredi'},
-        {label: 'Samedi', value: 'samedi'},
-        {label: 'Dimanche', value: 'dimanche'},
-    ];
+    const daysOptions = WEEKDAYS.map((day) => ({
+        label: day.charAt(0).toUpperCase() + day.slice(1),
+        value: day,
+    }));
 
     const getActivityFromApi = async () => {
         const activity = await apiService.get<ActivityInterface>(`/api/activity/${activityId}`);

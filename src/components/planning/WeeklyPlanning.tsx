@@ -8,6 +8,7 @@ import {ScheduleInterface} from "@/models/Schedule";
 import {apiService} from "@/services/ApiService";
 import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {toast} from "react-toastify";
+import {sortWeekdays} from "@/server/domain/planning/days";
 
 export default function WeeklyPlanning() {
 
@@ -34,10 +35,7 @@ export default function WeeklyPlanning() {
     }
 
     function getSortedDays() {
-        const daysOrder = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
-        return planning.days?.sort((a, b) => {
-            return daysOrder.indexOf(a.toLowerCase()) - daysOrder.indexOf(b.toLowerCase());
-        }) || [];
+        return sortWeekdays(planning.days ?? []);
     }
 
     return (
