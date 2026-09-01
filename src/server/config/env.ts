@@ -11,7 +11,7 @@ export interface AppEnv {
  * Changer de fournisseur ne demande que de redéfinir ces deux variables.
  */
 const DEFAULT_LLM_BASE_URL = 'https://api.groq.com/openai/v1';
-const DEFAULT_LLM_MODEL = 'openai/gpt-oss-120b';
+const DEFAULT_LLM_MODEL = 'qwen/qwen3.8-27b';
 
 function required(name: string, fallback?: string): string {
     const value = process.env[name] ?? fallback;

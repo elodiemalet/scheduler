@@ -53,9 +53,9 @@ A weekly planner: the user defines recurring **activities** (with priority, targ
 
 - `src/app/**` — App Router, **UI only**. Root layout (`src/app/layout.tsx`) mounts `TopNavigation`, `LeftSidebar` and `ToastContainer`. Routes: `/`, `/activity`, `/activity/add`, `/activity/edit/[id]`.
 - `src/pages/api/**` — Pages Router, **API only**. Classic `NextApiRequest`/`NextApiResponse` handlers that branch on `req.method` (and, for catch-all routes, on `slug[0]`). No non-API pages live under `src/pages/`.
-- `src/server/**` — server-side non-HTTP code: `config/` (typed env), `infrastructure/db/` (Mongo connection), `domain/planning/` (pure planning logic).
+- `src/server/**` — server-side code that is not a route: `config/` (typed env), `infrastructure/db/` (Mongo connection), `domain/planning/` (pure planning logic), `http/` (input schemas, normalized responses, rate limiting — everything a handler needs that is not business logic).
 
-Add new UI under `src/app/`, new endpoints under `src/pages/api/`, new business logic under `src/server/domain/`.
+Add new UI under `src/app/`, new endpoints under `src/pages/api/`, new business logic under `src/server/domain/`, and anything an endpoint needs to validate or answer under `src/server/http/`.
 
 ### The planning domain (`src/server/domain/planning/`)
 
@@ -76,15 +76,28 @@ Two naming rules that look inconsistent but are deliberate:
 
 `__fixtures__/openai-response.json` is a real captured model response (14 slots over jeudi/vendredi). It doubles as an end-to-end test of `parseSchedule` and as the reference for the expected output shape.
 
+### The HTTP layer (`src/server/http/`)
+
+Every handler follows the same three rules.
+
+**Input goes through a Zod schema — always.** `schemas/` holds one module per family of routes (`activity`, `schedule`, plus `common.ts` for the shared `objectId`). A handler starts with `safeParse` and answers `invalidInput(res, parsed.error)` on failure. Zod **strips** undeclared keys, and that stripping *is* the mass-assignment fix: `new Activity(parsed.data)` can no longer receive an `_id`. Never add `.strict()` — `ActivityForm` posts `_id` on every submit and must keep working.
+
+**Errors go through `respond.ts`.** `fail(res, status, message)` is the only shape (`{error}`); `serverError(res, context, error)` logs the detail and answers a generic 500 — Mongo and upstream messages stay out of responses; `methodNotAllowed(res, allowed)` sets a single comma-separated `Allow`. The one deliberate exception is `invalidInput`, which also returns the Zod issue paths: they describe *our* input contract, not internal state. The whole body of each handler sits in one `try`, `dbConnect()` included.
+
+**Generation is rate limited.** `rateLimit.ts` is an in-memory sliding window (`createRateLimiter(limit, windowMs)`), instantiated at module load in `generate_weekly_planning.ts` at 5 calls per 15 minutes. The counter is global to the route, not per caller: there is one user, and a per-IP counter would be forged around. State is per process and dies with it — accepted at this scale.
+
+Success shapes are **unchanged** by this layer: `/api/activity` answers `{data}`, `/api/activity/[id]` answers the bare document, `/api/schedule/status` answers `{status, schedule}`. The UI reads those directly.
+
 ### Planning generation pipeline
 
 `POST /api/generate_weekly_planning` (`src/pages/api/generate_weekly_planning.ts`) is the heart of the app. The handler is deliberately thin — load, call the domain, persist, respond:
 
+0. Checks the rate limiter first, before touching the database: over 5 generations per 15 minutes the route answers **429** with `Retry-After` and never calls the model.
 1. Loads all `Activity` docs, `.lean()`.
 2. `activities.map(activityToPlannable)` → a `PlannableActivity[]`. The domain can also fold external tasks in — `mergeActivitiesAndTasks` gives them priority `2`, `timeToSpendHours` `0.25`, and the one French weekday derived from their `dueDate` (falling back to today) — but no task source is wired to the planning yet.
 3. `buildDayWindows(plannable)` → per-day `{jour, heure_debut, heure_fin}`, sorted in week order. Defaults `09:00`–`18:00`, **widened but never narrowed** by the earliest `startTime` / latest `endTime` of that day's activities — they are a floor, so a fixed 07:00–09:00 block opens the day earlier without closing it at 09:00. The window never stretches to fit the requested durations: what does not fit is the model's problem to arbitrate by priority.
-4. Sends `{jours, activites}` as a JSON string to `generateWeeklyPlanning()`.
-5. `parseSchedule(raw)` validates the response and remaps snake_case → camelCase. Steps 4–5 are retried up to `GENERATION_ATTEMPTS` (2) times, because open-weight models break the output contract more often than proprietary ones. After the last failure the route answers **502**, not 500 — a bad model response is not a server bug.
+4. Sends `{jours, activites}` as a JSON string to `generateWeeklyPlanning()`, **inside a `try`** — a network failure or an upstream HTTP error is a bad model call, not a server bug.
+5. `parseSchedule(raw)` validates the response and remaps snake_case → camelCase. Steps 4–5 are retried up to `GENERATION_ATTEMPTS` (2) times, because open-weight models break the output contract more often than proprietary ones. After the last failure the route answers **502**, not 500. A `401`/`403` from the provider short-circuits the loop and answers 500: the key is wrong, retrying changes nothing.
 6. Saves a single `Planning` embedding the slots directly (`ScheduleSlot` already carries the schema's field names, so no adapter is needed). Nothing is written outside `plannings`.
 
 `GET` on the same route returns the most recent `Planning` (`sort({timestamp: -1})`) — this is what the home page renders. There is no "regenerate in place"; each generation appends a new `Planning`. Any other method gets 405 with `Allow: GET, POST`.
@@ -93,21 +106,21 @@ Two naming rules that look inconsistent but are deliberate:
 
 `src/services/LlmService.ts` holds the entire system prompt inline (in French) and calls a **chat-completions endpoint compatible with the OpenAI API**. The provider is configuration, not code — `LLM_BASE_URL`, `LLM_MODEL` and `LLM_API_KEY` are all read through `getEnv()`.
 
-Default provider is **Groq** (`https://api.groq.com/openai/v1`, `openai/gpt-oss-120b`), chosen because it serves open-weight models without training on customer data — the prompt carries the user's weekly routine. `gpt-oss-120b` is an open-weight model *hosted by Groq*; nothing reaches OpenAI.
+Default provider is **Groq** (`https://api.groq.com/openai/v1`, `qwen/qwen3.8-27b`), chosen because it serves open-weight models without training on customer data — the prompt carries the user's weekly routine. `qwen3.8-27b` is an open-weight model *hosted by Groq*; the vendor prefix in a model id names who released the weights, not who receives the request — nothing leaves Groq.
 
-The `openai` npm package is an HTTP client for the OpenAI *API shape*, not a link to OpenAI: `LlmService.ts` always passes `baseURL`, and `env.ts` defaults it to Groq, so no code path can route traffic to `api.openai.com`. What actually earns its 23 MB is the retry — 2 attempts with exponential backoff on 429/5xx/408/409, honouring `retry-after` — because `generate_weekly_planning.ts` calls the model *outside* its `try`, making the SDK the only guard against Groq rate limiting. Replacing it with `fetch` is planned for phase 5, together with the retry it would have to reimplement. Two constraints follow from targeting compatibility layers rather than OpenAI itself:
+**There is no SDK.** `LlmService.ts` calls `POST {LLM_BASE_URL}/chat/completions` with plain `fetch`. The `openai` package was 23 MB for two calls, and the only thing it really provided is reimplemented in `llmRetry.ts`: 3 attempts total, exponential backoff (500 ms, doubling, capped at 8 s) on 408/409/429/5xx, honouring `retry-after-ms` and `retry-after` (capped at 60 s), plus a 10-minute timeout via `AbortSignal.timeout`. A non-retryable status throws `LlmRequestError`, which carries the upstream status so the route can tell a refused key from a busy provider. No code path can reach `api.openai.com`: the URL is built from `env.llmBaseUrl`, which defaults to Groq. Two constraints follow from targeting compatibility layers rather than OpenAI itself:
 
 - `content` must be a **plain string**, not an array of `{type, text}` parts.
 - Use `max_tokens`, not `max_completion_tokens`.
 
-The client is built lazily on first generation, not at module load: `GET /api/generate_weekly_planning` must keep working when no LLM key is configured, since reading a stored planning never calls the model.
+`getEnv()` is read inside `generateWeeklyPlanning`, at call time — there is no client object to build any more. Note this is not what keeps a key-less install working: `dbConnect()` calls `getEnv()` too, and `LLM_API_KEY` is mandatory there, so a missing key already breaks every route.
 
 `temperature` is 0.3 — the task is constrained (fixed blocks, allowed days, no overlap), not creative.
 
 **Groq's catalogue churns.** Model names are retired without much notice; `llama-3.3-70b-versatile` already disappeared. When generation starts returning `404 model_not_found`, list what is actually available:
 
 ```bash
-node --env-file=.env -e "fetch(process.env.LLM_BASE_URL+'/models',{headers:{Authorization:'Bearer '+process.env.LLM_API_KEY}}).then(r=>r.json()).then(d=>console.log(d.data.map(m=>m.id).sort().join('\n')))"
+node --env-file=.env --env-file=.env.local -e "fetch((process.env.LLM_BASE_URL??'https://api.groq.com/openai/v1')+'/models',{headers:{Authorization:'Bearer '+process.env.LLM_API_KEY}}).then(r=>r.json()).then(d=>console.log(d.data.map(m=>m.id).sort().join('\n')))"
 ```
 
 The contract the prompt enforces:
@@ -118,7 +131,7 @@ The contract the prompt enforces:
 
 The prompt never names the duration field, so renaming it in `PlannableActivity` did not change the contract.
 
-Never trust this output: `parseSchedule` is the validation boundary, and also the defense against prompt injection through whatever text reaches the prompt. Note it validates **shape only** — it does not check that a slot's day is in that activity's allowed `days`.
+Never trust this output: `parseSchedule` is the validation boundary, and the real defense against prompt injection through whatever text reaches the prompt. Note it validates **shape only** — it does not check that a slot's day is in that activity's allowed `days`. On the way in, `mergeTasks.truncateForPrompt` caps external task titles and descriptions at `MAX_PROMPT_FIELD_LENGTH` (200) — that is a cost bound, not a security boundary; the two are complementary and neither replaces the other.
 
 ### Data model (Mongoose, `src/models/`)
 
@@ -166,7 +179,9 @@ This predates the domain extraction — the old inline code did the same arithme
 
 ## Environment
 
-`.env` (gitignored; `.env.example` is committed) provides: `MONGODB_URI`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
+`.env` and `.env.local` (both gitignored; `.env.example` is committed) provide: `MONGODB_URI`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
+
+**`LLM_API_KEY` lives in `.env.local`, not `.env`** — Next loads both (`.env.local` wins), but a one-off `node --env-file=.env` does not, and answers `Invalid API Key` while the app works fine. Pass both files. `LLM_BASE_URL` and `LLM_MODEL` are set in neither: they come from the code defaults in `env.ts`, so a script that reads `process.env.LLM_BASE_URL` gets `undefined`.
 
 Privacy is a stated requirement here: pick an LLM provider that does not train on submitted data.
 

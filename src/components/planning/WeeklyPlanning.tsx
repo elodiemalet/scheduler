@@ -91,10 +91,14 @@ export default function WeeklyPlanning() {
 
     async function generatePlanning() {
         setLoading(true);
-        apiService.post('/api/generate_weekly_planning', {}).then(() => {
+        try {
+            await apiService.post('/api/generate_weekly_planning', {});
             toast.success('Le planning a été généré avec succès');
-            getPlanning();
+            await getPlanning();
+        } catch {
+            toast.error('La génération a échoué. Réessayez dans quelques minutes.');
+        } finally {
             setLoading(false);
-        });
+        }
     }
 }

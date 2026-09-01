@@ -4,6 +4,21 @@ import {isWeekday, Weekday, weekdayFromDate} from './days';
 export const EXTERNAL_TASK_DEFAULT_HOURS = 0.25;
 export const EXTERNAL_TASK_DEFAULT_PRIORITY = 2;
 
+/**
+ * Longueur maximale d'un champ de tâche externe partant dans le prompt.
+ * Ce n'est pas une défense contre l'injection — celle-ci est en sortie, dans
+ * parseSchedule — mais une borne de coût : une note de 40 000 caractères
+ * noierait les consignes et gonflerait la facture.
+ */
+export const MAX_PROMPT_FIELD_LENGTH = 200;
+
+export function truncateForPrompt(
+    value: string,
+    maxLength: number = MAX_PROMPT_FIELD_LENGTH,
+): string {
+    return value.length <= maxLength ? value : `${value.slice(0, maxLength)}…`;
+}
+
 /** Forme unique consommée par le calcul des fenêtres et par le prompt. */
 export interface PlannableActivity {
     name: string;
@@ -61,8 +76,8 @@ export function externalTaskToPlannable(
     const dueDate = task.dueDate ? new Date(task.dueDate) : fallbackDate;
 
     return {
-        name: task.title,
-        description: task.description || task.notes || '',
+        name: truncateForPrompt(task.title),
+        description: truncateForPrompt(task.description || task.notes || ''),
         priority: task.priority ?? EXTERNAL_TASK_DEFAULT_PRIORITY,
         startTime: '',
         endTime: '',

@@ -1,50 +1,58 @@
 import {NextApiRequest, NextApiResponse} from "next";
 import dbConnect from "@/server/infrastructure/db/connection";
 import Activity from "@/models/Activity";
-
+import {activityUpdateSchema} from "@/server/http/schemas/activity";
+import {objectId} from "@/server/http/schemas/common";
+import {fail, invalidInput, methodNotAllowed, serverError} from "@/server/http/respond";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    await dbConnect();
+    try {
+        await dbConnect();
 
-    const {id} = req.query;
-
-    if (!id) {
-        res.status(400).json({message: 'Activity id is required'});
-        return;
-    }
-
-    if (req.method === 'GET') {
-        const activity = await Activity.findOne({_id: id});
-        if (!activity) {
-            res.status(404).json({message: 'Activity not found'});
+        // `req.query.id` vaut `string | string[] | undefined` : le schéma
+        // refuse les deux derniers cas sans qu'on ait à les distinguer.
+        const id = objectId.safeParse(req.query.id);
+        if (!id.success) {
+            invalidInput(res, id.error);
             return;
         }
 
-        res.status(200).json(activity);
-        return;
-    }
+        if (req.method === 'GET') {
+            const activity = await Activity.findById(id.data);
+            if (!activity) {
+                fail(res, 404, 'Activité introuvable');
+                return;
+            }
 
-    // Change schedule status on route /api/schedule/status
-    if (req.method === 'POST') {
-        const data = req.body;
-
-        const activity = await Activity.findOne({_id: id});
-        if (!activity) {
-            res.status(404).json({message: 'Activity not found'});
+            res.status(200).json(activity);
             return;
         }
 
-        // Update schedule status
-        Object.assign(activity, {
-            ...data
-        });
+        if (req.method === 'POST') {
+            const parsed = activityUpdateSchema.safeParse(req.body);
+            if (!parsed.success) {
+                invalidInput(res, parsed.error);
+                return;
+            }
 
-        await activity.save();
+            // `runValidators` : sans lui, une mise à jour contourne l'enum
+            // `days` du schéma — Mongoose ne valide pas les updates par défaut.
+            const activity = await Activity.findByIdAndUpdate(id.data, parsed.data, {
+                returnDocument: 'after',
+                runValidators: true,
+            });
 
-        res.status(200).json(activity);
-        return;
+            if (!activity) {
+                fail(res, 404, 'Activité introuvable');
+                return;
+            }
+
+            res.status(200).json(activity);
+            return;
+        }
+
+        methodNotAllowed(res, ['GET', 'POST']);
+    } catch (error) {
+        serverError(res, `${req.method} /api/activity/[id]`, error);
     }
-
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method}Not Allowed`);
 }

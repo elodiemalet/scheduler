@@ -4,7 +4,9 @@ import {
     EXTERNAL_TASK_DEFAULT_HOURS,
     EXTERNAL_TASK_DEFAULT_PRIORITY,
     externalTaskToPlannable,
+    MAX_PROMPT_FIELD_LENGTH,
     mergeActivitiesAndTasks,
+    truncateForPrompt,
 } from '@/server/domain/planning/mergeTasks';
 
 const MONDAY = new Date(2026, 7, 31);
@@ -119,5 +121,32 @@ describe('mergeActivitiesAndTasks', () => {
 
     it('rend un tableau vide sans entrée', () => {
         expect(mergeActivitiesAndTasks([], [], MONDAY)).toEqual([]);
+    });
+});
+
+describe('truncateForPrompt', () => {
+    it('laisse passer une valeur plus courte que la borne', () => {
+        expect(truncateForPrompt('Courir')).toBe('Courir');
+    });
+
+    it('coupe et marque une valeur trop longue', () => {
+        const long = 'a'.repeat(MAX_PROMPT_FIELD_LENGTH + 50);
+
+        const result = truncateForPrompt(long);
+
+        expect(result).toHaveLength(MAX_PROMPT_FIELD_LENGTH + 1);
+        expect(result.endsWith('…')).toBe(true);
+    });
+});
+
+describe('externalTaskToPlannable, champs hors normes', () => {
+    it('borne le titre et la description partant dans le prompt', () => {
+        const plannable = externalTaskToPlannable({
+            title: 'T'.repeat(500),
+            notes: 'N'.repeat(500),
+        }, MONDAY);
+
+        expect(plannable.name).toHaveLength(MAX_PROMPT_FIELD_LENGTH + 1);
+        expect(plannable.description).toHaveLength(MAX_PROMPT_FIELD_LENGTH + 1);
     });
 });
