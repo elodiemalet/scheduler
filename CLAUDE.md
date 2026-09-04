@@ -41,7 +41,7 @@ Bump either only once the upstream package declares support. Two related setting
 - `eslint.config.mjs` re-enables `react/no-unknown-property`, which `eslint-config-next` 16 leaves off, and
   demotes `react-hooks/set-state-in-effect` to a warning. That rule flags the two fetch-on-mount effects
   and accepts no local rewrite — the fix is a data library or Server Components, tracked in section 10 of
-  the spec. Lint's clean baseline is **0 errors, 6 warnings**.
+  the spec. Lint's clean baseline is **0 errors, 5 warnings**.
 
 ## What this is
 
@@ -53,6 +53,7 @@ A weekly planner: the user defines recurring **activities** (with priority, targ
 
 - `src/app/**` — App Router, **UI only**. Root layout (`src/app/layout.tsx`) mounts `TopNavigation`, `LeftSidebar` and `ToastContainer`. Routes: `/`, `/activity`, `/activity/add`, `/activity/edit/[id]`.
 - `src/pages/api/**` — Pages Router, **API only**. Classic `NextApiRequest`/`NextApiResponse` handlers that branch on `req.method` (and, for catch-all routes, on `slug[0]`). No non-API pages live under `src/pages/`.
+- `src/proxy.ts` — the per-request hook (Next 16's renamed `middleware.ts`). Draws a nonce and sets the CSP; the future auth guard lands here.
 - `src/server/**` — server-side code that is not a route: `config/` (typed env), `infrastructure/db/` (Mongo connection), `domain/planning/` (pure planning logic), `http/` (input schemas, normalized responses, rate limiting — everything a handler needs that is not business logic).
 
 Add new UI under `src/app/`, new endpoints under `src/pages/api/`, new business logic under `src/server/domain/`, and anything an endpoint needs to validate or answer under `src/server/http/`.
@@ -152,6 +153,23 @@ Mongoose 9 dropped the `new` option on `findOneAndUpdate`: use `returnDocument: 
 Values in `.env` override the code defaults, so bumping `DEFAULT_LLM_MODEL` in `env.ts` has no effect if `LLM_MODEL` is set in `.env`.
 
 `src/server/infrastructure/db/connection.ts` default-exports `dbConnect()`, which caches the Mongoose connection on `global.mongoose` — the standard Next.js pattern to survive hot reload.
+
+### Security headers and CSP
+
+Two files, split by whether the value depends on the request.
+
+`next.config.ts` carries what does not: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` — a deliberate duplicate of `frame-ancestors`, kept because it also covers API responses, which the proxy does not touch — and a `Permissions-Policy` denying camera, microphone and geolocation. `poweredByHeader: false` drops `X-Powered-By`.
+
+`src/proxy.ts` carries the CSP, because its nonce is drawn per request. Six things to know before touching any of it:
+
+- **The file is `src/proxy.ts`, not `middleware.ts`.** Next 16 renamed the convention — same mechanics, different file and export name. It sits beside `src/app`, never at the repo root.
+- **The nonce forces dynamic rendering**, which is why `src/app/layout.tsx` awaits `connection()`. Making a page static again breaks the CSP *silently*: it would be rendered at build time, when there is no request and no nonce to read. `npm run build` must show every `app` route as `ƒ (Dynamic)`.
+- **`react-toastify` must stay imported from `react-toastify/unstyled`**, with `react-toastify/ReactToastify.css` imported separately in the layout. The default entry injects a runtime `<style>`, which carries no nonce and is refused.
+- **`'unsafe-eval'` is added in development only** — React rebuilds server error stacks with `eval` there, and neither React nor Next needs it in production.
+- **`upgrade-insecure-requests` is deliberately absent** while the instance is served over http: it would rewrite its own requests to https. Add it the day this deploys behind HTTPS.
+- **The `matcher` excludes `/api`**, plus static assets and `next/link` prefetches (which would burn a nonce nobody uses). API responses have no document to protect — if a route ever returns HTML, the matcher has to change. **The authentication guard will have to widen it too**: `proxy.ts` is where that guard lands.
+
+`NODE_ENV` is the one value read from `process.env` outside `env.ts`, and only here: the proxy runtime has no business importing `getEnv()`'s cache.
 
 ### Client-side conventions
 

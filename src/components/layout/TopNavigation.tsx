@@ -1,25 +1,8 @@
 "use client"
 
-import {useEffect, useState} from "react";
 import Link from "next/link";
 
 export default function TopNavigation() {
-    const [user, setUser] = useState({
-        name: "",
-        profilePicture: "",
-    });
-
-    useEffect(() => {
-        fetch("https://randomuser.me/api/?results=1")
-            .then(response => response.json())
-            .then(data => {
-                setUser({
-                    name: data.results[0].name.first,
-                    profilePicture: data.results[0].picture.thumbnail,
-                });
-            });
-    }, []);
-
     return (
         <nav
             className="fixed top-0 z-50 w-full bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
@@ -46,18 +29,6 @@ export default function TopNavigation() {
                     <div className="flex items-center">
 
                         <div className="flex items-center ms-3">
-                            {}
-                            {user.profilePicture &&
-                                <button type="button"
-                                        className="flex text-sm bg-gray-800 rounded-full md:me-0 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600"
-                                        id="user-menu-button" aria-expanded="false" data-dropdown-toggle="user-dropdown"
-                                        data-dropdown-placement="bottom">
-                                    <span className="sr-only">Open user menu</span>
-                                    <img className="w-8 h-8 rounded-full"
-                                         src={user.profilePicture}
-                                         alt="user photo"/>
-                                </button>
-                            }
                             <div
                                 className="z-50 hidden my-4 text-base list-none bg-white divide-y divide-gray-100 rounded-xs shadow-xs dark:bg-gray-700 dark:divide-gray-600"
                                 id="dropdown-user">
