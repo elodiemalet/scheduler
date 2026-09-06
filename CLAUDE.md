@@ -51,12 +51,12 @@ A weekly planner: the user defines recurring **activities** (with priority, targ
 
 ### Three layers
 
-- `src/app/**` — App Router, **UI only**. Root layout (`src/app/layout.tsx`) mounts `TopNavigation`, `LeftSidebar` and `ToastContainer`. Routes: `/`, `/activity`, `/activity/add`, `/activity/edit/[id]`.
-- `src/pages/api/**` — Pages Router, **API only**. Classic `NextApiRequest`/`NextApiResponse` handlers that branch on `req.method` (and, for catch-all routes, on `slug[0]`). No non-API pages live under `src/pages/`.
+- `src/app/**` — App Router, and the only router. It carries **both** the UI and the API. Root layout (`src/app/layout.tsx`) mounts `TopNavigation`, `LeftSidebar` and `ToastContainer`. Page routes: `/`, `/activity`, `/activity/add`, `/activity/edit/[id]`.
+- `src/app/api/**` — the four Route Handlers, **API only**: `activity/`, `activity/[id]/`, `generate_weekly_planning/`, `schedule/status/`. Each is a `route.ts` exporting one `async function` per HTTP method (`GET`, `POST`, `DELETE`) that **returns** a `Response`. A handler takes a `NextRequest` parameter only if it needs one — to read the body, a query string, or a cookie. Four of the eight exports don't: `activity/route.ts`'s `GET`, both exports of `generate_weekly_planning/route.ts`, and `activity/[id]/route.ts`'s `GET`, which still declares the parameter as `_request` because the route context (the second argument, carrying `params`) comes after it positionally. There is no Pages Router: `src/pages/` no longer exists, and neither does `NextApiRequest`/`NextApiResponse`.
 - `src/proxy.ts` — the per-request hook (Next 16's renamed `middleware.ts`). Draws a nonce and sets the CSP; the future auth guard lands here.
 - `src/server/**` — server-side code that is not a route: `config/` (typed env), `infrastructure/db/` (Mongo connection), `domain/planning/` (pure planning logic), `http/` (input schemas, normalized responses, rate limiting — everything a handler needs that is not business logic).
 
-Add new UI under `src/app/`, new endpoints under `src/pages/api/`, new business logic under `src/server/domain/`, and anything an endpoint needs to validate or answer under `src/server/http/`.
+Add new UI under `src/app/`, new endpoints under `src/app/api/`, new business logic under `src/server/domain/`, and anything an endpoint needs to validate or answer under `src/server/http/`.
 
 ### The planning domain (`src/server/domain/planning/`)
 
@@ -79,21 +79,48 @@ Two naming rules that look inconsistent but are deliberate:
 
 ### The HTTP layer (`src/server/http/`)
 
-Every handler follows the same three rules.
+Every handler follows the same four rules.
 
-**Input goes through a Zod schema — always.** `schemas/` holds one module per family of routes (`activity`, `schedule`, plus `common.ts` for the shared `objectId`). A handler starts with `safeParse` and answers `invalidInput(res, parsed.error)` on failure. Zod **strips** undeclared keys, and that stripping *is* the mass-assignment fix: `new Activity(parsed.data)` can no longer receive an `_id`. Never add `.strict()` — `ActivityForm` posts `_id` on every submit and must keep working.
+**Input goes through a Zod schema — always.** `schemas/` holds one module per family of routes (`activity`, `schedule`, plus `common.ts` for the shared `objectId`). A handler starts with `safeParse` and answers `invalidInput(parsed.error)` on failure. Zod **strips** undeclared keys, and that stripping *is* the mass-assignment fix: `new Activity(parsed.data)` can no longer receive an `_id`. Never add `.strict()` — `ActivityForm` posts `_id` on every submit and must keep working.
 
-**Errors go through `respond.ts`.** `fail(res, status, message)` is the only shape (`{error}`); `serverError(res, context, error)` logs the detail and answers a generic 500 — Mongo and upstream messages stay out of responses; `methodNotAllowed(res, allowed)` sets a single comma-separated `Allow`. The one deliberate exception is `invalidInput`, which also returns the Zod issue paths: they describe *our* input contract, not internal state. The whole body of each handler sits in one `try`, `dbConnect()` included.
+**Errors go through `apiResponse.ts`.** These helpers **return** a `Response` instead of writing into a `NextApiResponse` — that is the Route Handler contract, and incidentally what makes them testable without a server (`apiResponse.test.ts` asserts on real `Response` objects). A handler therefore `return`s the helper's value; it never calls it for effect. `fail(status, message, headers?)` is the only error shape (`{error}`), and its optional third argument is how `Retry-After` rides along; `serverError(context, error)` logs the detail and returns a generic 500 — Mongo and upstream messages stay out of responses. The one deliberate exception is `invalidInput(error)`, which also returns the Zod issue paths: they describe *our* input contract, not internal state. The whole body of each handler sits in one `try`, `dbConnect()` included.
 
-**Generation is rate limited.** `rateLimit.ts` is an in-memory sliding window (`createRateLimiter(limit, windowMs)`), instantiated at module load in `generate_weekly_planning.ts` at 5 calls per 15 minutes. The counter is global to the route, not per caller: there is one user, and a per-IP counter would be forged around. State is per process and dies with it — accepted at this scale.
+**Bodies go through `readJsonBody(request)`, never `request.json()`.** `request.json()` **throws** on an empty body, where the Pages Router's `req.body` was simply `undefined`. Without that catch a body-less request would surface as a 500 from the handler's `try`, instead of the 400 the Zod schema produces when it parses `undefined`. `readJsonBody` swallows the parse failure and returns `undefined`, which hands the decision back to the schema — so a malformed body and an absent one both answer 400, with the schema's own message.
+
+**Generation is rate limited.** `rateLimit.ts` is an in-memory sliding window (`createRateLimiter(limit, windowMs)`), instantiated at module load in `generate_weekly_planning/route.ts` at 5 calls per 15 minutes. The counter is global to the route, not per caller: there is one user, and a per-IP counter would be forged around. State is per process and dies with it — accepted at this scale.
 
 Success shapes are **unchanged** by this layer: `/api/activity` answers `{data}`, `/api/activity/[id]` answers the bare document, `/api/schedule/status` answers `{status, schedule}`. The UI reads those directly.
 
+### Route Handler conventions
+
+Seven things that cost real time to rediscover. The first five are traps the type checker does not catch; the last two are about how you verify a route at all.
+
+- **`params` is a promise.** The handler's second argument is `{params: Promise<{id: string}>}` — write `const {id} = await params`, or `(await params).slug` for a catch-all. Forgetting the `await` does not produce a useful type error: you get a `Promise` where a string was expected, it stringifies into the schema, and the route answers a baffling 400.
+- **Read the body with `readJsonBody(request)`, and exactly once.** The request body is a stream: a second read throws on a consumed body. Every handler that needs it parses once, at the top, into its Zod schema.
+- **Several `Set-Cookie` headers need `headers.append`, one call per cookie.** Passing an array — which `res.setHeader` accepted — yields a **single** header whose value is the cookies joined by a comma, i.e. one cookie with an absurd name and everything after the first comma lost. Nothing warns you: it builds, it type-checks, and the browser simply stores garbage.
+- **`NextResponse.redirect` returns a response with *mutable* headers**, unlike the standard `Response.redirect`, whose headers are immutable. That is what allows a cookie to be attached to the redirect itself; setting a header on a `Response.redirect` throws at runtime.
+- **`Object.fromEntries(request.nextUrl.searchParams)` keeps only the last value of a repeated parameter**, where `req.query` returned an array for it. No route reads a query string yet; the day one takes an array-valued field, reach for `searchParams.getAll`.
+- **`tsc --noEmit` is not enough to validate a route.** The handler context type is checked against the route types Next generates into `.next/types`, which only `next build` produces. A route can type-check clean and still fail the build on its signature.
+- **Never run `npm run build` while `next dev` is running.** They share `.next`, and the build leaves the dev server serving 500 on every route until it is restarted.
+
+#### Five behaviour changes the migration introduced
+
+The first four are accepted consequences of the file-per-route, export-per-method shape, not oversights.
+**The fifth is not a decision — it is a known regression**, called out separately below.
+
+- **An unexported method gets Next's own 405**, which is `new Response(null, {status: 405})`: **empty body and no `Allow` header**. The old `methodNotAllowed(res, allowed)` set one, as RFC 9110 §15.5.6 requires. Nothing in the UI reads either, so the header was not worth reimplementing on all four routes.
+- **`OPTIONS` is now implemented by Next out of the box**, and answers a correct `Allow` built from the exported methods. The Pages Router handlers implemented no `OPTIONS` at all, so this is new behaviour, and strictly better.
+- **`HEAD` is derived from `GET`**: a `HEAD` on a read route runs the `GET` handler and discards the body. Written plainly, because it is the surprising one: the three `GET`s here are pure reads, but a `GET` with side effects — an OAuth `authorize` route that draws a `state` and sets its cookie, say — runs on every `HEAD` too, and a `HEAD` there would overwrite that cookie and break any flow already in flight. Worth knowing before adding one.
+- **`/api/schedule/<anything-else>` now answers 404 instead of 405**, since the catch-all `[...slug]` gave way to the static `status/` segment. **No route that is actually served changed its status code.**
+
+**The regression: the Pages Router's 1 MB body limit has no Route Handler equivalent.**
+That ceiling was `bodyParser.sizeLimit`'s default (`node_modules/next/dist/server/api-utils/node/api-resolver.js:315`), and none of the four old handlers overrode it. Route Handlers enforce nothing of the kind: `readJsonBody` buffers whatever `request.json()` is handed before Zod evaluates a single field. The schemas bound *field* sizes (`MAX_NAME = 200`, `MAX_TEXT = 2000` — see `schemas/activity.ts`), never the body as a whole. A `POST /api/activity` with a 500 MB body is now accepted into memory in full, and only then rejected with a 400 — on routes that still have no authentication in front of them. Nobody chose this: it fell out of swapping `bodyParser` for `request.json()` and went unnoticed until the final branch review. The fix belongs to phase 8, the phase that adds the authentication guard — a body-size check without an identity behind it only changes who can send the oversized request, not whether the endpoint should accept unauthenticated writes at all.
+
 ### Planning generation pipeline
 
-`POST /api/generate_weekly_planning` (`src/pages/api/generate_weekly_planning.ts`) is the heart of the app. The handler is deliberately thin — load, call the domain, persist, respond:
+`POST /api/generate_weekly_planning` (`src/app/api/generate_weekly_planning/route.ts`) is the heart of the app. The handler is deliberately thin — load, call the domain, persist, respond:
 
-0. Checks the rate limiter first, before touching the database: over 5 generations per 15 minutes the route answers **429** with `Retry-After` and never calls the model.
+0. Checks the rate limiter: over 5 generations per 15 minutes the route answers **429** with `Retry-After` and never calls the model. Note the check is *not* the first statement — `await dbConnect()` runs just before it, so a rejected call still opens the Mongo connection. That connection is cached, so it is near-free after the first call, and nothing else touches the database before the 429.
 1. Loads all `Activity` docs, `.lean()`.
 2. `activities.map(activityToPlannable)` → a `PlannableActivity[]`. The domain can also fold external tasks in — `mergeActivitiesAndTasks` gives them priority `2`, `timeToSpendHours` `0.25`, and the one French weekday derived from their `dueDate` (falling back to today) — but no task source is wired to the planning yet.
 3. `buildDayWindows(plannable)` → per-day `{jour, heure_debut, heure_fin}`, sorted in week order. Defaults `09:00`–`18:00`, **widened but never narrowed** by the earliest `startTime` / latest `endTime` of that day's activities — they are a floor, so a fixed 07:00–09:00 block opens the day earlier without closing it at 09:00. The window never stretches to fit the requested durations: what does not fit is the model's problem to arbitrate by priority.
@@ -101,7 +128,7 @@ Success shapes are **unchanged** by this layer: `/api/activity` answers `{data}`
 5. `parseSchedule(raw)` validates the response and remaps snake_case → camelCase. Steps 4–5 are retried up to `GENERATION_ATTEMPTS` (2) times, because open-weight models break the output contract more often than proprietary ones. After the last failure the route answers **502**, not 500. A `401`/`403` from the provider short-circuits the loop and answers 500: the key is wrong, retrying changes nothing.
 6. Saves a single `Planning` embedding the slots directly (`ScheduleSlot` already carries the schema's field names, so no adapter is needed). Nothing is written outside `plannings`.
 
-`GET` on the same route returns the most recent `Planning` (`sort({timestamp: -1})`) — this is what the home page renders. There is no "regenerate in place"; each generation appends a new `Planning`. Any other method gets 405 with `Allow: GET, POST`.
+`GET` on the same route returns the most recent `Planning` (`sort({timestamp: -1})`) — this is what the home page renders. There is no "regenerate in place"; each generation appends a new `Planning`. The file exports only `GET` and `POST`, so any other method gets Next's bare 405 (see the behaviour changes above), and `HEAD` runs the `GET`.
 
 ### LLM integration
 
@@ -144,7 +171,7 @@ Slots exist in exactly one place: embedded in `Planning`. `POST /api/schedule/st
 
 Every model is exported as `mongoose.models.X || mongoose.model('X', …)` — required so Next.js hot reload doesn't redefine models.
 
-Mongoose 9 dropped the `new` option on `findOneAndUpdate`: use `returnDocument: 'after'`. Its one call site (`src/pages/api/schedule/[...slug].ts`) already does.
+Mongoose 9 dropped the `new` option on `findOneAndUpdate`: use `returnDocument: 'after'`. Its one call site (`src/app/api/schedule/status/route.ts`) already does, as does `findByIdAndUpdate` in `src/app/api/activity/[id]/route.ts`.
 
 ### Configuration and database connection
 
