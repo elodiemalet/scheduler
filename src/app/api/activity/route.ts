@@ -1,6 +1,8 @@
 import type {NextRequest} from 'next/server';
-import Activity from '@/models/Activity';
+import Activity, {ActivityInterface} from '@/models/Activity';
+import Planning from '@/models/Planning';
 import dbConnect from '@/server/infrastructure/db/connection';
+import {minutesDoneByActivity, SlotProgress} from '@/server/domain/planning/timeSpent';
 import {activityInputSchema, deleteActivitySchema} from '@/server/http/schemas/activity';
 import {fail, invalidInput, readJsonBody, serverError} from '@/server/http/apiResponse';
 
@@ -8,8 +10,23 @@ export async function GET() {
     try {
         await dbConnect();
 
-        const activities = await Activity.find({});
-        return Response.json({data: activities});
+        const [activities, planning] = await Promise.all([
+            Activity.find({}).lean<ActivityInterface[]>(),
+            // Le dernier planning est la semaine en cours, celui de l'accueil. Les
+            // précédents sont des régénérations ou des semaines passées : les
+            // additionner compterait les mêmes créneaux plusieurs fois.
+            Planning.findOne().sort({timestamp: -1}).select('schedule').lean<{schedule: SlotProgress[]}>(),
+        ]);
+
+        // Calculé plutôt que stocké : décocher un créneau fait redescendre le
+        // cumul, sans compteur à maintenir en phase avec les statuts.
+        const done = minutesDoneByActivity(planning?.schedule ?? []);
+        const data = activities.map((activity) => ({
+            ...activity,
+            timeAlreadySpent: done.get(activity.name) ?? 0,
+        }));
+
+        return Response.json({data});
     } catch (error) {
         return serverError('GET /api/activity', error);
     }

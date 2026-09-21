@@ -70,7 +70,6 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
             startTime: form.startTime,
             endTime: form.endTime,
             timeToSpend: form.timeToSpend,
-            timeAlreadySpent: 0,
             days: form.days,
         });
 

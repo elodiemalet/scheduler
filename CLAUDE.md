@@ -69,6 +69,7 @@ Add new UI under `src/app/`, new endpoints under `src/app/api/`, new business lo
 | `mergeTasks.ts` | `PlannableActivity`, `ActivityInput`, `ExternalTaskInput`, `activityToPlannable`, `externalTaskToPlannable`, `mergeActivitiesAndTasks` |
 | `buildDayWindows.ts` | `DayWindow`, `buildDayWindows`, `DEFAULT_START_TIME`, `DEFAULT_END_TIME` |
 | `parseSchedule.ts` | `ScheduleSlot`, `parseSchedule`, `InvalidModelResponseError` |
+| `timeSpent.ts` | `SlotProgress`, `minutesDoneByActivity` |
 
 Two naming rules that look inconsistent but are deliberate:
 
@@ -163,7 +164,7 @@ Never trust this output: `parseSchedule` is the validation boundary, and the rea
 
 ### Data model (Mongoose, `src/models/`)
 
-- `Activity` — user-defined recurring work. `days: string[]` of French weekday names.
+- `Activity` — user-defined recurring work. `days: string[]` of French weekday names. `timeAlreadySpent` is **not stored**: `GET /api/activity` computes it on every read from the `done` slots of the latest `Planning` only (earlier ones are regenerations of the same week), matched to the activity **by name** — a slot carries no activity id. It is in minutes, like the stored `timeToSpend`, and drops to 0 when the week is regenerated.
 - `Schedule` — **not a collection.** `src/models/Schedule.ts` exports only `ScheduleSchema` and `ScheduleInterface`, the embedded subdocument type for `Planning.schedule` (`day`, `startTime`, `endTime`, `activity`, `description`, `status` of `pending`/`done`). There is no `Schedule` model: a slot has no life outside its planning.
 - `Planning` — a generated week, and a historical snapshot. It embeds `ScheduleSchema` subdocuments for the slots, and `PlannedActivitySchema` copies of **the set actually sent to the model**, carrying `timeToSpendHours` (plus the `source` and `externalId` of any external task). Deliberately not `ActivitySchema`: a snapshot records what was planned, not a living activity, so editing an activity never mutates past plannings.
 

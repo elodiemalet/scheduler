@@ -28,7 +28,6 @@ export const activityInputSchema = z.object({
     isCompleted: z.boolean().optional(),
     isActive: z.boolean().optional(),
     timeToSpend: z.number().min(0).max(MAX_TIME_TO_SPEND).optional(),
-    timeAlreadySpent: z.number().min(0).max(MAX_TIME_TO_SPEND).optional(),
     days: z.array(z.enum(WEEKDAYS)).optional(),
 });
 

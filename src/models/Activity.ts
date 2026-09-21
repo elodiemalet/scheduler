@@ -9,6 +9,7 @@ export interface ActivityInterface {
     isCompleted: boolean;
     isActive: boolean;
     timeToSpend: number;
+    /** Calculé à la lecture par GET /api/activity, jamais stocké. */
     timeAlreadySpent: number;
     days: Array<string>;
     _id: string | null | undefined;
@@ -31,7 +32,6 @@ export const ActivitySchema = new mongoose.Schema({
     isCompleted: Boolean,
     isActive: Boolean,
     timeToSpend: Number,
-    timeAlreadySpent: Number,
     days: {type: [String], enum: WEEKDAYS, default: []},
 });
 
