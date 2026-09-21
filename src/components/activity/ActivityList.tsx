@@ -59,10 +59,16 @@ export default function ActivityList() {
                         Heures
                     </th>
                     <th scope="col" className="p-4 font-medium text-left">
-                        Temps à passer
+                        Terminée
                     </th>
                     <th scope="col" className="p-4 font-medium text-left">
-                        Déjà passé
+                        Active
+                    </th>
+                    <th scope="col" className="p-4 font-medium text-left">
+                        Temps à passer (min)
+                    </th>
+                    <th scope="col" className="p-4 font-medium text-left">
+                        Déjà passé (min)
                     </th>
                     <th></th>
                 </tr>
