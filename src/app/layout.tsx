@@ -40,7 +40,7 @@ export default async function RootLayout({children,}: Readonly<{
         <TopNavigation/>
         <LeftSidebar/>
         <main
-            className="flex flex-col gap-8 row-start-2 items-center sm:items-start sm:ml-64 mt-14 h-full">
+            className="flex flex-col gap-8 row-start-2 items-center sm:items-start sm:ml-64 mt-14 p-4 h-full">
             {children}
         </main>
         <ToastContainer icon={false}/>
