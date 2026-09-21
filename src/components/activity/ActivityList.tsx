@@ -35,10 +35,10 @@ export default function ActivityList() {
             });
     }
 
-    return <div className="w-full overflow-hidden bg-white shadow-md dark:bg-gray-800 sm:rounded-lg">
+    return <div className="w-full shrink-0 overflow-x-auto bg-white shadow-md dark:bg-gray-800 sm:rounded-lg">
         <div className="flex flex-col justify-end w-full">
             <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <thead className="text-xs text-gray-700 uppercase whitespace-nowrap bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                 <tr>
                     <th scope="col" className="p-4 font-medium text-left">
                         Nom
