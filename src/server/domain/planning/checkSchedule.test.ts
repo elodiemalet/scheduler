@@ -1,0 +1,136 @@
+import {describe, expect, it} from 'vitest';
+import {checkSchedule} from '@/server/domain/planning/checkSchedule';
+import {DayWindow} from '@/server/domain/planning/buildDayWindows';
+import {ScheduleSlot} from '@/server/domain/planning/parseSchedule';
+import {SessionRequest} from '@/server/domain/planning/sessions';
+
+const WINDOWS: DayWindow[] = [
+    {jour: 'lundi', heure_debut: '09:00', heure_fin: '18:00'},
+    {jour: 'mardi', heure_debut: '09:00', heure_fin: '18:00'},
+];
+
+function request(overrides: Partial<SessionRequest> = {}): SessionRequest {
+    return {
+        name: 'Sport',
+        description: '',
+        priority: 2,
+        sessions: 1,
+        sessionMinutes: 60,
+        minSessionMinutes: 30,
+        days: ['lundi', 'mardi'],
+        startTime: '',
+        endTime: '',
+        ...overrides,
+    };
+}
+
+function slot(overrides: Partial<ScheduleSlot> = {}): ScheduleSlot {
+    return {
+        day: 'lundi',
+        startTime: '09:00',
+        endTime: '10:00',
+        activity: 'Sport',
+        description: '',
+        ...overrides,
+    };
+}
+
+function only(pattern: RegExp) {
+    return [expect.stringMatching(pattern)];
+}
+
+describe('checkSchedule', () => {
+    it('ne signale rien sur un planning conforme', () => {
+        expect(checkSchedule([slot()], [request()], WINDOWS)).toEqual([]);
+    });
+
+    it('accepte une priorité 2 raccourcie jusqu\'à son plancher', () => {
+        expect(checkSchedule([slot({endTime: '09:30'})], [request()], WINDOWS)).toEqual([]);
+    });
+
+    it('accepte qu\'une priorité 3 ait perdu des séances', () => {
+        expect(checkSchedule([slot()], [request({priority: 3, sessions: 2, minSessionMinutes: 60})], WINDOWS))
+            .toEqual([]);
+    });
+
+    it('signale une fin avant le début', () => {
+        expect(checkSchedule([slot({startTime: '10:00', endTime: '09:00'})], [request()], WINDOWS))
+            .toEqual(only(/fin avant le début/));
+    });
+
+    it('signale un jour hors de la semaine planifiée', () => {
+        const requests = [request({days: ['lundi', 'mardi', 'mercredi']})];
+        expect(checkSchedule([slot({day: 'mercredi'})], requests, WINDOWS))
+            .toEqual(only(/hors de la semaine/));
+    });
+
+    it('signale un créneau hors des horaires du jour', () => {
+        expect(checkSchedule([slot({startTime: '08:00', endTime: '09:00'})], [request()], WINDOWS))
+            .toEqual(only(/hors des horaires/));
+    });
+
+    it('signale une activité inconnue', () => {
+        expect(checkSchedule([slot({activity: 'Yoga'})], [request()], WINDOWS))
+            .toEqual(only(/activité inconnue/));
+    });
+
+    it('signale un jour non autorisé pour l\'activité', () => {
+        expect(checkSchedule([slot()], [request({days: ['mardi']})], WINDOWS))
+            .toEqual(only(/jour non autorisé/));
+    });
+
+    it('signale une séance sous son plancher', () => {
+        expect(checkSchedule([slot({endTime: '09:20'})], [request()], WINDOWS))
+            .toEqual(only(/trop courte/));
+    });
+
+    it('signale un bloc fixe déplacé', () => {
+        const fixed = request({startTime: '09:00', endTime: '10:00', minSessionMinutes: 60});
+        expect(checkSchedule([slot({startTime: '10:00', endTime: '11:00'})], [fixed], WINDOWS))
+            .toEqual(only(/bloc fixe/));
+    });
+
+    it('signale deux créneaux qui se chevauchent', () => {
+        const requests = [request({name: 'A'}), request({name: 'B'})];
+        const slots = [
+            slot({activity: 'A'}),
+            slot({activity: 'B', startTime: '09:30', endTime: '10:30'}),
+        ];
+        expect(checkSchedule(slots, requests, WINDOWS)).toEqual(only(/se chevauchent/));
+    });
+
+    it('détecte un chevauchement avec un créneau non voisin', () => {
+        const requests = [
+            request({name: 'A', sessionMinutes: 180, minSessionMinutes: 180}),
+            request({name: 'B'}),
+            request({name: 'C'}),
+        ];
+        const slots = [
+            slot({activity: 'A', startTime: '09:00', endTime: '12:00'}),
+            slot({activity: 'B', startTime: '10:00', endTime: '10:30'}),
+            slot({activity: 'C', startTime: '11:00', endTime: '11:30'}),
+        ];
+        expect(checkSchedule(slots, requests, WINDOWS)).toEqual([
+            expect.stringMatching(/A et B se chevauchent/),
+            expect.stringMatching(/A et C se chevauchent/),
+        ]);
+    });
+
+    it('signale deux séances de la même activité le même jour', () => {
+        const slots = [slot(), slot({startTime: '11:00', endTime: '12:00'})];
+        expect(checkSchedule(slots, [request({sessions: 2})], WINDOWS))
+            .toEqual(only(/plusieurs séances/));
+    });
+
+    it('signale plus de séances que demandé', () => {
+        const slots = [slot(), slot({day: 'mardi'})];
+        expect(checkSchedule(slots, [request({sessions: 1})], WINDOWS))
+            .toEqual(only(/2 séances pour 1 demandée/));
+    });
+
+    it('signale une séance de priorité 1 manquante', () => {
+        const essential = request({priority: 1, sessions: 2, minSessionMinutes: 60});
+        expect(checkSchedule([slot()], [essential], WINDOWS))
+            .toEqual(only(/priorité 1/));
+    });
+});
