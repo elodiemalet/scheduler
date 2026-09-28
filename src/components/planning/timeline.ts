@@ -33,7 +33,7 @@ export const FREE_TIME_IDEAS: readonly string[] = [
     "Un fruit, croqué lentement.",
     "Ferme les yeux, écoute les bruits autour.",
     "Une musique d'un pays où tu n'es jamais allé·e.",
-    "Planifie ton week-end idéal.",
+    "Choisis ta prochaine sortie.",
     "Siffle un air sans te tromper.",
     "Commence une liste de films à voir.",
     "Une partie d'échecs éclair.",
