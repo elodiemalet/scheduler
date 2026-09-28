@@ -163,9 +163,6 @@ Activity (MongoDB)
 Le code sous `src/server/domain/planning/` ne dépend ni de Mongoose, ni de Next, ni du LLM : il prend des
 données et en rend. C'est ce qui permet de le tester sans base ni réseau.
 
-Les conventions détaillées (couche HTTP, pièges des Route Handlers, en-têtes de sécurité, contrat du prompt)
-sont documentées dans [CLAUDE.md](CLAUDE.md).
-
 ## Tests
 
 ```bash
