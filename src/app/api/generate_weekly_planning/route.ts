@@ -6,9 +6,13 @@ import {ActivityInput, activityToPlannable} from '@/server/domain/planning/merge
 import {buildDayWindows} from '@/server/domain/planning/buildDayWindows';
 import {
     InvalidModelResponseError,
+    parseSacrifices,
     parseSchedule,
+    Sacrifice,
     ScheduleSlot,
 } from '@/server/domain/planning/parseSchedule';
+import {toSessionRequests} from '@/server/domain/planning/sessions';
+import {checkSchedule} from '@/server/domain/planning/checkSchedule';
 import {createRateLimiter} from '@/server/http/rateLimit';
 import {fail, serverError} from '@/server/http/apiResponse';
 
@@ -57,13 +61,15 @@ export async function POST() {
         const activities = await Activity.find({}).lean<ActivityInput[]>();
         const plannable = activities.map(activityToPlannable);
         const dayWindows = buildDayWindows(plannable);
+        const requests = toSessionRequests(plannable, dayWindows);
 
         const payload = JSON.stringify({
             jours: dayWindows,
-            activites: plannable,
+            activites: requests,
         });
 
         let slots: ScheduleSlot[] | null = null;
+        let sacrifices: Sacrifice[] = [];
         let lastRejection = '';
 
         // Un modèle ouvert échoue plus souvent à respecter le contrat de sortie
@@ -94,6 +100,7 @@ export async function POST() {
 
             try {
                 slots = parseSchedule(raw);
+                sacrifices = parseSacrifices(raw);
             } catch (error) {
                 if (!(error instanceof InvalidModelResponseError)) {
                     throw error;
@@ -117,14 +124,23 @@ export async function POST() {
 
         const dates = `${weekStartDate.toLocaleDateString('fr')} - ${weekEndDate.toLocaleDateString('fr')}`;
 
+        // Un planning qui viole des règles est gardé et affiché avec ses
+        // violations : c'est à l'utilisateur de décider s'il relance.
+        const violations = checkSchedule(slots, requests, dayWindows);
+        if (violations.length > 0) {
+            console.warn(`Génération : ${violations.length} règle(s) non respectée(s)`);
+        }
+
         await new Planning({
             name: `Planning du ${dates}`,
             days: dayWindows.map((window) => window.jour),
-            activities: plannable,
+            activities: requests,
             schedule: slots,
+            violations,
+            sacrifices,
         }).save();
 
-        return Response.json({schedule: slots});
+        return Response.json({schedule: slots, violations, sacrifices});
     } catch (error) {
         return serverError('POST /api/generate_weekly_planning', error);
     }
