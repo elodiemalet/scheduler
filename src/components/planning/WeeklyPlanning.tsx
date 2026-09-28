@@ -119,10 +119,17 @@ export default function WeeklyPlanning() {
     );
 
     async function generatePlanning() {
+        if (loading) return;
         setLoading(true);
         try {
-            await apiService.post('/api/generate_weekly_planning', {});
-            toast.success('Le planning a été généré avec succès');
+            const result = await apiService.post<Record<string, never>, {violations: string[]}>(
+                '/api/generate_weekly_planning', {},
+            );
+            if (result.violations && result.violations.length > 0) {
+                toast.warning('Planning généré, mais certaines règles ne sont pas respectées.');
+            } else {
+                toast.success('Le planning a été généré avec succès');
+            }
             await getPlanning();
         } catch {
             toast.error('La génération a échoué. Réessayez dans quelques minutes.');
