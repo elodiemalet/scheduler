@@ -7,6 +7,7 @@ import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {useRouter} from "next/navigation";
 import BaseHorizontalListGroup from "@/components/uiComponents/BaseHorizontalListGroup";
 import {WEEKDAYS} from "@/server/domain/planning/days";
+import {toast} from "react-toastify";
 
 export default function ActivityForm({activityId}: { activityId?: string }) {
 
@@ -14,12 +15,14 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
     const EMPTY_FORM = {
         name: '',
         description: '',
-        priority: 1,
+        priority: 2,
         startDate: '',
         endDate: '',
         startTime: '',
         endTime: '',
-        timeToSpend: 10,
+        timeToSpend: 60,
+        // Chaîne : un champ vide veut dire « une séance par jour coché ».
+        timesPerWeek: '',
         days: ['jeudi', 'vendredi'] as string[],
     };
 
@@ -39,12 +42,13 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
         setForm({
             name: activity.name ?? '',
             description: activity.description ?? '',
-            priority: activity.priority ?? 1,
+            priority: activity.priority ?? 2,
             startDate: activity.startDate ? new Date(activity.startDate).toISOString().split('T')[0] : '',
             endDate: activity.endDate ? new Date(activity.endDate).toISOString().split('T')[0] : '',
             startTime: activity.startTime ?? '',
             endTime: activity.endTime ?? '',
-            timeToSpend: activity.timeToSpend ?? 10,
+            timeToSpend: activity.timeToSpend ?? 60,
+            timesPerWeek: activity.timesPerWeek ? String(activity.timesPerWeek) : '',
             days: activity.days ?? [],
         });
     };
@@ -56,6 +60,12 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
     }, [activityId]);
 
     const handleSubmit = async () => {
+        const timesPerWeek = form.timesPerWeek === '' ? null : Number(form.timesPerWeek);
+        if (timesPerWeek !== null && form.days.length > 0 && timesPerWeek > form.days.length) {
+            toast.error(`${timesPerWeek} fois par semaine, mais seulement ${form.days.length} jour(s) coché(s).`);
+            return;
+        }
+
         const url = activityId ? `/api/activity/${activityId}` : '/api/activity';
 
         await apiService.post(url, {
@@ -70,6 +80,7 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
             startTime: form.startTime,
             endTime: form.endTime,
             timeToSpend: form.timeToSpend,
+            timesPerWeek,
             days: form.days,
         });
 
@@ -193,23 +204,26 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
                     htmlFor="priority"
                     className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                 >
-                    Priority
+                    Priorité
                 </label>
-                <input
-                    type="number"
+                <select
                     id="priority"
                     className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                     required
                     value={form.priority}
                     onChange={(e) => updateField('priority', Number(e.target.value))}
-                />
+                >
+                    <option value={1}>1 — indispensable</option>
+                    <option value={2}>2 — important</option>
+                    <option value={3}>3 — accessoire</option>
+                </select>
             </div>
             <div>
                 <label
                     htmlFor="timeToSpend"
                     className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
                 >
-                    Time To Spend
+                    Durée d&apos;une séance (min)
                 </label>
                 <input
                     type="number"
@@ -218,6 +232,24 @@ export default function ActivityForm({activityId}: { activityId?: string }) {
                     required
                     value={form.timeToSpend}
                     onChange={(e) => updateField('timeToSpend', Number(e.target.value))}
+                />
+            </div>
+            <div>
+                <label
+                    htmlFor="timesPerWeek"
+                    className="block mb-2 text-sm font-medium text-gray-900 dark:text-white"
+                >
+                    Nombre de fois par semaine
+                </label>
+                <input
+                    type="number"
+                    id="timesPerWeek"
+                    min={1}
+                    max={7}
+                    placeholder="Une fois par jour coché"
+                    className="block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
+                    value={form.timesPerWeek}
+                    onChange={(e) => updateField('timesPerWeek', e.target.value)}
                 />
             </div>
         </div>
