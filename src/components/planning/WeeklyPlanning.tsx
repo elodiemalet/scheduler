@@ -60,6 +60,35 @@ export default function WeeklyPlanning() {
                     <span>Générer</span>
                 </BaseButton>
             </h2>
+            {planning.violations && planning.violations.length > 0 &&
+                <div
+                    role="alert"
+                    className="my-4 rounded-lg border border-danger-300 bg-danger-50 p-4 text-sm text-danger-800 dark:border-danger-700 dark:bg-danger-900 dark:text-danger-100"
+                >
+                    <p className="font-medium">Ce planning ne respecte pas toutes les règles :</p>
+                    <ul className="mt-2 list-disc ps-5">
+                        {planning.violations.map((violation, index) => <li key={index}>{violation}</li>)}
+                    </ul>
+                    <BaseButton className="mt-3" onClick={() => generatePlanning()}>
+                        {loading ? <Spinner/> : 'Relancer'}
+                    </BaseButton>
+                </div>
+            }
+            {planning.sacrifices && planning.sacrifices.length > 0 &&
+                <details className="my-4 text-sm text-gray-600 dark:text-gray-300">
+                    <summary className="cursor-pointer">
+                        Sacrifié cette semaine ({planning.sacrifices.length})
+                    </summary>
+                    <ul className="mt-2 list-disc ps-5">
+                        {planning.sacrifices.map((sacrifice, index) =>
+                            <li key={index}>
+                                {sacrifice.activity}{sacrifice.day ? `, ${sacrifice.day}` : ''} : {sacrifice.type}
+                                {sacrifice.detail ? ` — ${sacrifice.detail}` : ''}
+                            </li>
+                        )}
+                    </ul>
+                </details>
+            }
             <div className="flex flex-col justify-end w-full">
 
                 <div className="flex gap-4 w-full">
