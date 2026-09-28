@@ -7,6 +7,7 @@ import {apiService} from "@/services/ApiService";
 import ActivityCard, {ActivityPatch} from "@/components/activity/ActivityCard";
 import AddActivityDialog from "@/components/activity/AddActivityDialog";
 import FixedTimesPanel from "@/components/activity/FixedTimesPanel";
+import LunchBreakPanel from "@/components/activity/LunchBreakPanel";
 import {notifySchedulerChanged} from "@/components/planning/useWeek";
 import {BaseButton} from "@/components/uiComponents/BaseButton";
 import Spinner from "@/components/uiComponents/Spinner";
@@ -120,10 +121,13 @@ export default function ActivityList() {
                 </div>
             </div>
 
-            <FixedTimesPanel
-                activities={activities}
-                onSave={(id, patch) => save(id, patch)}
-            />
+            <div className="flex w-full shrink-0 flex-col gap-9 xl:w-[330px]">
+                <FixedTimesPanel
+                    activities={activities}
+                    onSave={(id, patch) => save(id, patch)}
+                />
+                <LunchBreakPanel/>
+            </div>
 
             <AddActivityDialog
                 open={adding}
