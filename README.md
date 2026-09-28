@@ -67,7 +67,7 @@ versionné.
 | `LLM_API_KEY`  | oui         | —                                     | Clé du fournisseur LLM            |
 | `MONGODB_URI`  | non         | `mongodb://localhost:27017/scheduler` | Base MongoDB                      |
 | `LLM_BASE_URL` | non         | `https://api.groq.com/openai/v1`      | Endpoint compatible OpenAI        |
-| `LLM_MODEL`    | non         | `qwen/qwen3.8-27b`                    | Modèle utilisé pour la génération |
+| `LLM_MODEL`    | non         | `openai/gpt-oss-120b`                 | Modèle utilisé pour la génération |
 
 Sans `LLM_API_KEY`, aucune route ne répond, pas seulement la génération : la connexion à la base lit toute la
 configuration et échoue sur la variable manquante.
