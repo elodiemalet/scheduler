@@ -15,7 +15,7 @@ import {formatTimes} from "@/components/uiComponents/format";
 import {effectiveTimes} from "@/components/activity/activityRules";
 
 /**
- * Écran Activités : cartes éditables sur place, carte « Une nouvelle envie ? »
+ * Écran Activités : cartes résumées, ouvertes pour les éditer sur place, carte « Une nouvelle envie ? »
  * et panneau des horaires fixes. Chaque modification part aussitôt vers l'API ;
  * l'état local est mis à jour d'abord, puis rechargé si l'API refuse.
  */
@@ -107,13 +107,15 @@ export default function ActivityList() {
                     <button
                         type="button"
                         onClick={() => setAdding(true)}
-                        className="hidden min-h-80 flex-col items-center justify-center gap-3.5 rounded-3xl border-[1.5px] border-dashed border-muted bg-transparent px-5 py-7 text-center text-ink transition-[transform,background-color] duration-100 hover:border-solid hover:border-ink hover:bg-butter active:scale-[.97] md:flex"
+                        className="hidden items-center gap-3.5 rounded-3xl border-[1.5px] border-dashed border-muted bg-transparent px-5 py-3.5 text-left text-ink transition-[transform,background-color] duration-100 hover:border-solid hover:border-ink hover:bg-butter active:scale-[.97] md:flex"
                     >
-                        <span className="flex size-16 items-center justify-center rounded-full bg-butter">
-                            <PlusIcon size={24}/>
+                        <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-butter">
+                            <PlusIcon size={20}/>
                         </span>
-                        <span className="ital text-[28px] leading-[30px]">Une nouvelle envie ?</span>
-                        <span className="text-sm text-muted">Ajouter une activité</span>
+                        <span className="flex flex-col">
+                            <span className="ital text-[22px] leading-[26px]">Une nouvelle envie ?</span>
+                            <span className="text-sm text-muted">Ajouter une activité</span>
+                        </span>
                     </button>
                 </div>
             </div>

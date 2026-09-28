@@ -9,7 +9,7 @@ import PriorityIcon from "@/components/uiComponents/icons/PriorityIcon";
 import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {CloseIcon, TrashIcon} from "@/components/uiComponents/icons/icons";
 import {PRIORITIES, priorityStyle} from "@/components/uiComponents/priority";
-import {formatClock, formatDuration, formatTimes} from "@/components/uiComponents/format";
+import {formatClock, formatDays, formatDuration, formatTimes} from "@/components/uiComponents/format";
 import EditableValue from "@/components/uiComponents/EditableValue";
 import {
     clampTimes, DEFAULT_FIXED_START, durationOf, effectiveTimes, fixedStart, fixedTimes, MAX_DURATION,
@@ -20,9 +20,10 @@ export type ActivityPatch = Partial<Pick<ActivityInterface,
     "name" | "priority" | "timesPerWeek" | "timeToSpend" | "days" | "startTime" | "endTime">>;
 
 /**
- * Carte d'activité éditable sur place : chaque contrôle enregistre aussitôt
- * (`onSave`), le nom à la sortie du champ. La carte n'est pas cliquable ; son
- * contour passe au prune pendant qu'on modifie un champ.
+ * Carte d'activité. Fermée, elle résume l'activité en deux lignes ; un clic
+ * l'ouvre en édition sur place : chaque contrôle enregistre aussitôt
+ * (`onSave`), le nom à la sortie du champ. Ouverte, son contour passe au prune
+ * pendant qu'on modifie un champ.
  */
 export default function ActivityCard({activity, onSave, onDelete}: {
     activity: ActivityInterface,
@@ -32,6 +33,7 @@ export default function ActivityCard({activity, onSave, onDelete}: {
     const [name, setName] = useState(activity.name);
     const [editedName, setEditedName] = useState(activity.name);
     const [confirming, setConfirming] = useState(false);
+    const [expanded, setExpanded] = useState(false);
 
     // Le nom affiché suit la valeur enregistrée quand elle change ailleurs
     // (rechargement après une erreur) — sans effet ni double rendu.
@@ -78,6 +80,29 @@ export default function ActivityCard({activity, onSave, onDelete}: {
     }
 
     const meta = `${formatTimes(times)} · ${formatDuration(duration)} · ${style.label}`;
+    const when = `${formatDays(schedulable.days)} · ${start !== null ? `${formatClock(start)} → ${formatClock(start + duration)}` : "horaire libre"}`;
+
+    if (!expanded) {
+        return (
+            <article className="rounded-[22px] border border-line bg-cream md:rounded-3xl">
+                <button
+                    type="button"
+                    aria-expanded={false}
+                    aria-label={`Modifier ${activity.name}`}
+                    onClick={() => setExpanded(true)}
+                    className="group flex w-full items-center gap-3 rounded-[inherit] px-4 py-3.5 text-left text-ink transition-colors hover:bg-line/50 md:px-5"
+                >
+                    <PriorityIcon priority={activity.priority} className="size-3 shrink-0"/>
+                    <span className="flex min-w-0 grow flex-col gap-0.5">
+                        <span className="break-words text-xl font-bold tracking-[-0.3px] md:text-[22px] md:tracking-[-0.4px]">{activity.name}</span>
+                        <span className="text-[13px] text-muted">{meta}</span>
+                        <span className="text-[13px] text-muted">{when}</span>
+                    </span>
+                    <span className="shrink-0 text-[13px] font-semibold text-muted group-hover:text-ink">Modifier</span>
+                </button>
+            </article>
+        );
+    }
 
     return (
         <article
@@ -108,6 +133,9 @@ export default function ActivityCard({activity, onSave, onDelete}: {
                         />
                         <div className="text-[13px] text-muted md:hidden">{meta}</div>
                     </div>
+                    <BaseButton theme="link" size="small" onClick={() => setExpanded(false)}>
+                        Fermer
+                    </BaseButton>
                     <StepButton ghost label={`Supprimer ${activity.name}`} onClick={() => setConfirming(true)}
                                 className="size-11 md:size-[30px]">
                         <TrashIcon size={16} className="text-muted"/>
