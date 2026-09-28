@@ -27,7 +27,9 @@ export function buildDayWindows(
     ]);
 
     return days.map((day) => {
-        const forDay = activities.filter((activity) => activity.days.includes(day));
+        const forDay = activities.filter(
+            (activity) => activity.days.length === 0 || activity.days.includes(day),
+        );
 
         const starts = minutesOf(forDay.map((activity) => activity.startTime));
         const ends = minutesOf(forDay.map((activity) => activity.endTime));
