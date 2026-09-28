@@ -84,3 +84,63 @@ export function parseSchedule(raw: string): ScheduleSlot[] {
 
     return schedule.map(toSlot);
 }
+
+export type SacrificeType = 'supprimée' | 'raccourcie';
+
+/** Séance que le modèle déclare avoir supprimée ou raccourcie. Purement informatif. */
+export interface Sacrifice {
+    activity: string;
+    /** Vide quand le modèle ne précise pas le jour. */
+    day: string;
+    type: SacrificeType;
+    detail: string;
+}
+
+function sacrificeType(value: unknown): SacrificeType | null {
+    if (typeof value !== 'string') {
+        return null;
+    }
+    const normalized = value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    if (normalized.startsWith('supprim')) {
+        return 'supprimée';
+    }
+    if (normalized.startsWith('raccourc')) {
+        return 'raccourcie';
+    }
+    return null;
+}
+
+/**
+ * Ne lève jamais, contrairement à parseSchedule : les sacrifices ne servent
+ * qu'à l'affichage, une entrée mal formée est simplement écartée.
+ */
+export function parseSacrifices(raw: string): Sacrifice[] {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        return [];
+    }
+
+    const list = (parsed as {sacrifices?: unknown} | null)?.sacrifices;
+    if (!Array.isArray(list)) {
+        return [];
+    }
+
+    return list.flatMap((entry): Sacrifice[] => {
+        if (typeof entry !== 'object' || entry === null) {
+            return [];
+        }
+        const {activity, day, type, detail} = entry as Record<string, unknown>;
+        const kind = sacrificeType(type);
+        if (typeof activity !== 'string' || activity.trim() === '' || kind === null) {
+            return [];
+        }
+        return [{
+            activity: activity.trim(),
+            day: typeof day === 'string' ? day : '',
+            type: kind,
+            detail: typeof detail === 'string' ? detail : '',
+        }];
+    });
+}

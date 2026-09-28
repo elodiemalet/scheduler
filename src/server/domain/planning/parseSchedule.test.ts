@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {
     InvalidModelResponseError,
     parseSchedule,
+    parseSacrifices,
 } from '@/server/domain/planning/parseSchedule';
 import fixture from '@/server/domain/planning/__fixtures__/openai-response.json';
 
@@ -81,5 +82,48 @@ describe('parseSchedule', () => {
     it('indique le rang du créneau fautif', () => {
         expect(() => parseSchedule(response([VALID_SLOT, {...VALID_SLOT, day: 'funday'}])))
             .toThrow(/créneau 2/i);
+    });
+});
+
+describe('parseSacrifices', () => {
+    function withSacrifices(sacrifices: unknown): string {
+        return JSON.stringify({schedule: [], sacrifices});
+    }
+
+    it('lit les sacrifices déclarés par le modèle', () => {
+        expect(parseSacrifices(withSacrifices([
+            {activity: ' Lecture ', day: 'mercredi', type: 'supprimée', detail: 'plus de place'},
+            {activity: 'Anglais', day: 'lundi', type: 'raccourcie', detail: '60 → 40 min'},
+        ]))).toEqual([
+            {activity: 'Lecture', day: 'mercredi', type: 'supprimée', detail: 'plus de place'},
+            {activity: 'Anglais', day: 'lundi', type: 'raccourcie', detail: '60 → 40 min'},
+        ]);
+    });
+
+    it('accepte un type sans accent ni casse', () => {
+        expect(parseSacrifices(withSacrifices([{activity: 'A', type: 'SUPPRIMEE'}]))[0])
+            .toEqual({activity: 'A', day: '', type: 'supprimée', detail: ''});
+    });
+
+    it('rend une liste vide quand le champ est absent', () => {
+        expect(parseSacrifices(JSON.stringify({schedule: []}))).toEqual([]);
+    });
+
+    it('rend une liste vide sur un JSON illisible, sans lever', () => {
+        expect(parseSacrifices('{ pas du json')).toEqual([]);
+    });
+
+    it('ignore les entrées mal formées', () => {
+        expect(parseSacrifices(withSacrifices([
+            null,
+            'texte',
+            {day: 'lundi', type: 'supprimée'},
+            {activity: 'A', type: 'déplacée'},
+            {activity: 'B', type: 'raccourcie'},
+        ]))).toEqual([{activity: 'B', day: '', type: 'raccourcie', detail: ''}]);
+    });
+
+    it('ne trouve aucun sacrifice dans la fixture, antérieure au champ', () => {
+        expect(parseSacrifices(JSON.stringify(fixture))).toEqual([]);
     });
 });
