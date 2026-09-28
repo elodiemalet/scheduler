@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {CalendarIcon, ListIcon} from "@/components/uiComponents/icons/icons";
+import {CalendarIcon, CheckIcon, ListIcon} from "@/components/uiComponents/icons/icons";
 import {isCurrent, NAV_ITEMS} from "@/components/layout/AppHeader";
 
-const ICONS = {"/": CalendarIcon, "/activity": ListIcon} as const;
+const ICONS = {"/": CalendarIcon, "/activity": ListIcon, "/task": CheckIcon} as const;
 
 /** Barre d'onglets du bas, mobile uniquement. */
 export default function MobileTabBar() {
@@ -13,7 +13,7 @@ export default function MobileTabBar() {
 
     return (
         <nav aria-label="Pages"
-             className="fixed inset-x-0 bottom-0 z-30 grid h-20 grid-cols-2 gap-1.5 border-t border-line bg-cream px-4 pt-2 pb-[18px] md:hidden">
+             className="fixed inset-x-0 bottom-0 z-30 grid h-20 grid-cols-3 gap-1.5 border-t border-line bg-cream px-4 pt-2 pb-[18px] md:hidden">
             {NAV_ITEMS.map((item) => {
                 const current = isCurrent(pathname, item.href);
                 const Icon = ICONS[item.href];
