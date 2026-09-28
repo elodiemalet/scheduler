@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {CalendarIcon, CheckIcon, ListIcon} from "@/components/uiComponents/icons/icons";
+import {CalendarIcon, CircleCheckIcon, ListIcon} from "@/components/uiComponents/icons/icons";
 import {isCurrent, NAV_ITEMS} from "@/components/layout/AppHeader";
 
-const ICONS = {"/": CalendarIcon, "/activity": ListIcon, "/task": CheckIcon} as const;
+const ICONS = {"/": CalendarIcon, "/activity": ListIcon, "/task": CircleCheckIcon} as const;
 
 /** Barre d'onglets du bas, mobile uniquement. */
 export default function MobileTabBar() {

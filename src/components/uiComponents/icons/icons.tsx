@@ -61,3 +61,8 @@ export function ListIcon(props: IconProps) {
         </Svg>
     );
 }
+
+/** Onglet « Tâches » et état vide de la page. */
+export function CircleCheckIcon(props: IconProps) {
+    return <Svg {...props}><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></Svg>;
+}
