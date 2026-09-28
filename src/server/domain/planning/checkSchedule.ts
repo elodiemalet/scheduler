@@ -108,7 +108,11 @@ function minutesOf(slot: ScheduleSlot): number {
  * Plusieurs créneaux d'une activité le même jour ne sont admis que comme les deux
  * parties d'une séance coupée par la pause ; la durée se juge alors sur leur total.
  */
-function checkSplitSession(group: readonly ScheduleSlot[], request: SessionRequest | undefined, lunch: LunchBreak | null): string[] {
+function checkSplitSession(
+    group: readonly ScheduleSlot[],
+    request: SessionRequest | undefined,
+    lunch: LunchBreak | null,
+): string[] {
     const {activity, day} = group[0];
     if (group.length > 2) {
         return [`${activity} : plus de deux parties le ${day}`];

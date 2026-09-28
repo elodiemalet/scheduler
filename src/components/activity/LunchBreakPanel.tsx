@@ -51,7 +51,7 @@ export default function LunchBreakPanel() {
         setSaving(true);
         apiService.put<{ lunchBreak: LunchBreak | null }, { lunchBreak: LunchBreak | null }>("/api/settings", {lunchBreak})
             .then(() => toast.success("Pause enregistrée. Elle vaudra dès la prochaine génération."))
-            .catch(() => toast.error("La pause n'a pas été enregistrée."))
+            .catch(() => toast.error("La pause n’a pas été enregistrée."))
             .finally(() => setSaving(false));
     }
 
