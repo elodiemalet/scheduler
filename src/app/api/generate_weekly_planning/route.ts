@@ -18,7 +18,10 @@ import {
 import {toSessionRequests} from '@/server/domain/planning/sessions';
 import {checkSchedule} from '@/server/domain/planning/checkSchedule';
 import {buildCorrectionRequest, isBetterCorrection} from '@/server/domain/planning/correction';
-import {LUNCH_END, LUNCH_START, numberParts} from '@/server/domain/planning/lunchBreak';
+import Settings, {SettingsInterface} from '@/models/Settings';
+import {
+    DEFAULT_LUNCH_BREAK, lunchBreakOf, numberParts, validateLunchBreak,
+} from '@/server/domain/planning/lunchBreak';
 import {createRateLimiter} from '@/server/http/rateLimit';
 import {fail, serverError} from '@/server/http/apiResponse';
 
@@ -72,10 +75,18 @@ export async function POST() {
             );
         }
 
-        const [activities, tasks] = await Promise.all([
+        const [activities, tasks, settings] = await Promise.all([
             Activity.find({}).lean<ActivityInput[]>(),
             Task.find({done: false}).lean<Array<TaskInput & {_id: Types.ObjectId}>>(),
+            Settings.findOne().lean<SettingsInterface>(),
         ]);
+
+        // Un réglage invalide (édité à la main en base) ne doit jamais faire échouer une génération.
+        let lunch = lunchBreakOf(settings ?? {});
+        if (lunch && validateLunchBreak(lunch).length > 0) {
+            console.warn(`Génération : pause réglée invalide (${lunch.start}–${lunch.end}), pause par défaut utilisée`);
+            lunch = DEFAULT_LUNCH_BREAK;
+        }
 
         // Le modèle ne voit que ces références courtes ; on retrouve la tâche
         // de chaque créneau par elles, jamais par un titre qu'il aurait reformulé.
@@ -91,7 +102,8 @@ export async function POST() {
 
         const payload = JSON.stringify({
             jours: dayWindows,
-            pause: {debut: LUNCH_START, fin: LUNCH_END},
+            // Sans pause, la clé est absente : le prompt ne coupe alors aucune séance.
+            ...(lunch ? {pause: {debut: lunch.start, fin: lunch.end}} : {}),
             activites: requests,
         });
 
@@ -156,7 +168,7 @@ export async function POST() {
 
         const dates = `${weekStartDate.toLocaleDateString('fr')} - ${weekEndDate.toLocaleDateString('fr')}`;
 
-        let violations = checkSchedule(slots, requests, dayWindows);
+        let violations = checkSchedule(slots, requests, dayWindows, lunch);
 
         // Retry ciblé : une seule tentative, où le modèle corrige sa propre
         // réponse à partir des violations. On ne garde la correction que si
@@ -169,7 +181,7 @@ export async function POST() {
                 });
                 if (corrected) {
                     const correctedSlots = parseSchedule(corrected);
-                    const correctedViolations = checkSchedule(correctedSlots, requests, dayWindows);
+                    const correctedViolations = checkSchedule(correctedSlots, requests, dayWindows, lunch);
                     console.warn(`Génération, correction : ${violations.length} → ${correctedViolations.length} violation(s)`);
                     if (isBetterCorrection(violations, correctedViolations)) {
                         slots = correctedSlots;
@@ -203,6 +215,7 @@ export async function POST() {
             violations,
             sacrifices,
             note,
+            lunchBreak: lunch,
         }).save();
 
         return Response.json({schedule, violations, sacrifices, note});
