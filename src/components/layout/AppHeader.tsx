@@ -22,7 +22,7 @@ export default function AppHeader() {
 
     return (
         <header
-            className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-5 pt-[22px] pb-3 md:h-[84px] md:gap-7 md:px-10 md:pt-6 md:pb-0">
+            className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-5 pt-[22px] pb-3 md:h-[94px] md:gap-7 md:px-10 md:pt-[30px] md:pb-4">
             <Link href="/" className="flex grow items-baseline gap-[3px] md:grow-0 md:gap-1" aria-label="scheduler, ma semaine">
                 <span className="text-[28px] leading-[30px] font-extrabold tracking-[-1.2px] md:text-[44px] md:leading-[46px] md:tracking-[-2px]">
                     scheduler
