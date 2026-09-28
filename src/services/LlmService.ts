@@ -51,12 +51,13 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
   - "startTime" et "endTime" : quand les deux sont renseignés, c'est un bloc fixe
 
 ## Règles
-1. Place "sessions" séances de chaque activité, chacune un jour différent pris dans "days" : jamais deux séances de la même activité le même jour.
-2. Chaque séance dure "sessionMinutes".
-3. Un bloc fixe se place exactement de "startTime" à "endTime" : ni déplacé, ni raccourci.
-4. Aucun chevauchement. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
-5. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
-6. Le temps qui reste libre reste libre : ne rallonge aucune séance.
+1. Place exactement "sessions" séances de chaque activité, ni plus ni moins, chacune un jour différent pris dans "days" : jamais deux séances de la même activité le même jour.
+2. "days" liste les jours possibles, pas les jours imposés. Quand "days" compte plus de jours que "sessions", choisis-en seulement "sessions" : aucune séance de cette activité les autres jours, blocs fixes compris.
+3. Chaque séance dure "sessionMinutes".
+4. Un bloc fixe se place exactement de "startTime" à "endTime", les seuls jours choisis : ni déplacé, ni raccourci.
+5. Aucun chevauchement. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
+6. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
+7. Le temps qui reste libre reste libre : ne rallonge aucune séance.
 
 ## Quand tout ne tient pas
 Applique ces étapes dans l'ordre, et seulement autant que nécessaire :
