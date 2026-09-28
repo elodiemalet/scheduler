@@ -90,7 +90,7 @@
 }
 
 /* Fenêtre d'ajout : <dialog> natif, ouvert en modal. */
-dialog.sheet::backdrop {
+dialog::backdrop {
     background: rgb(86 65 84 / 0.38);
 }
 
