@@ -198,7 +198,7 @@ export async function POST() {
         // Un planning qui viole encore des règles est gardé et affiché avec ses
         // violations : c'est à l'utilisateur de décider s'il relance.
         // Les deux moitiés d'une séance coupée par la pause portent 1/2 et 2/2.
-        const schedule = numberParts(slots).map((slot) => {
+        const schedule = numberParts(slots, lunch).map((slot) => {
             // Une référence inconnue est déjà signalée par checkSchedule : le créneau reste, sans lien.
             const taskId = slot.ref ? taskIdByRef.get(slot.ref) : undefined;
             return taskId ? {...slot, taskId} : slot;

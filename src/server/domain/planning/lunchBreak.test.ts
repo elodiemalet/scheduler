@@ -98,20 +98,37 @@ describe('lunchBreakOf', () => {
 
 describe('numberParts', () => {
     it('numérote 1/1 une séance d\'un seul tenant', () => {
-        expect(numberParts([slot()])).toEqual([{...slot(), part: 1, parts: 1}]);
+        expect(numberParts([slot()], DEFAULT_LUNCH_BREAK)).toEqual([{...slot(), part: 1, parts: 1}]);
     });
 
     it('numérote dans l\'ordre des heures les deux parties d\'une séance coupée', () => {
         const afternoon = slot({startTime: '14:00', endTime: '15:00'});
         const morning = slot({startTime: '11:30', endTime: '12:30'});
-        expect(numberParts([afternoon, morning])).toEqual([
+        expect(numberParts([afternoon, morning], DEFAULT_LUNCH_BREAK)).toEqual([
             {...afternoon, part: 2, parts: 2},
             {...morning, part: 1, parts: 2},
         ]);
     });
 
     it('ne rapproche ni deux jours, ni deux activités', () => {
-        const parts = numberParts([slot(), slot({day: 'mardi'}), slot({activity: 'Piano', startTime: '14:00', endTime: '15:00'})]);
+        const parts = numberParts([slot(), slot({day: 'mardi'}), slot({activity: 'Piano', startTime: '14:00', endTime: '15:00'})], DEFAULT_LUNCH_BREAK);
         expect(parts.map((p) => p.parts)).toEqual([1, 1, 1]);
+    });
+
+    it('sans pause, deux créneaux du même jour restent chacun 1/1', () => {
+        const a = slot({startTime: '11:30', endTime: '12:30'});
+        const b = slot({startTime: '14:00', endTime: '15:00'});
+        expect(numberParts([a, b], null).map((p) => [p.part, p.parts])).toEqual([[1, 1], [1, 1]]);
+    });
+
+    it('deux créneaux qui n\'encadrent pas la pause restent chacun 1/1', () => {
+        const a = slot({startTime: '09:00', endTime: '10:00'});
+        const b = slot({startTime: '16:00', endTime: '17:00'});
+        expect(numberParts([a, b], DEFAULT_LUNCH_BREAK).map((p) => [p.part, p.parts])).toEqual([[1, 1], [1, 1]]);
+    });
+
+    it('trois créneaux d\'une même activité le même jour restent chacun 1/1', () => {
+        const slots = [slot(), slot({startTime: '11:30', endTime: '12:30'}), slot({startTime: '14:00', endTime: '15:00'})];
+        expect(numberParts(slots, DEFAULT_LUNCH_BREAK).map((p) => p.parts)).toEqual([1, 1, 1]);
     });
 });

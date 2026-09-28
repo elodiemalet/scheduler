@@ -89,15 +89,27 @@ export function groupSessions<T extends ScheduleSlot>(slots: readonly T[]): T[][
 }
 
 /**
- * Numérote chaque créneau dans sa séance (`part` sur `parts`), dans l'ordre des
- * heures. C'est ce qui relie les deux moitiés d'une séance coupée dans le planning
- * enregistré, sans rien demander au modèle. L'ordre des créneaux est conservé.
+ * Numérote chaque créneau dans sa séance (`part` sur `parts`). Seule une paire
+ * qui encadre la pause (`isSplitAroundLunch`) est une séance coupée : ses deux
+ * moitiés reçoivent 1/2 et 2/2, dans l'ordre des heures, sans rien demander au
+ * modèle. Tout autre créneau — seul, en paire qui n'encadre pas la pause, en
+ * groupe de trois ou plus, ou sans pause — reçoit 1/1. L'ordre des créneaux est conservé.
  */
-export function numberParts<T extends ScheduleSlot>(slots: readonly T[]): Array<T & {part: number; parts: number}> {
+export function numberParts<T extends ScheduleSlot>(
+    slots: readonly T[],
+    lunch: LunchBreak | null,
+): Array<T & {part: number; parts: number}> {
     const numbering = new Map<T, {part: number; parts: number}>();
     for (const group of groupSessions(slots)) {
-        const sorted = [...group].sort((a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime));
-        sorted.forEach((slot, index) => numbering.set(slot, {part: index + 1, parts: sorted.length}));
+        if (group.length === 2 && isSplitAroundLunch(group[0], group[1], lunch)) {
+            const [first, second] = [...group].sort(
+                (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
+            );
+            numbering.set(first, {part: 1, parts: 2});
+            numbering.set(second, {part: 2, parts: 2});
+        } else {
+            group.forEach((slot) => numbering.set(slot, {part: 1, parts: 1}));
+        }
     }
     return slots.map((slot) => ({...slot, ...numbering.get(slot)!}));
 }
