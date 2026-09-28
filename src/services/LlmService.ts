@@ -97,13 +97,23 @@ Ne supprime et ne raccourcis jamais une séance de priorité 1.
  * sortie est validé par parseSchedule ; ici on ne gère que le transport et sa
  * reprise — c'est le seul service que rendait le SDK retiré.
  */
-export async function generateWeeklyPlanning(userJson: string): Promise<string | null> {
+export async function generateWeeklyPlanning(
+    userJson: string,
+    correction?: {previous: string; request: string},
+): Promise<string | null> {
     const env = getEnv();
     const body = JSON.stringify({
         model: env.llmModel,
         messages: [
             {role: "system", content: SYSTEM_PROMPT},
             {role: "user", content: userJson},
+            // Retry ciblé : le modèle relit sa réponse et les violations relevées.
+            ...(correction
+                ? [
+                    {role: "assistant", content: correction.previous},
+                    {role: "user", content: correction.request},
+                ]
+                : []),
         ],
         response_format: {type: "json_object"},
         temperature: TEMPERATURE,

@@ -17,6 +17,7 @@ import {
 } from '@/server/domain/planning/parseSchedule';
 import {toSessionRequests} from '@/server/domain/planning/sessions';
 import {checkSchedule} from '@/server/domain/planning/checkSchedule';
+import {buildCorrectionRequest, isBetterCorrection} from '@/server/domain/planning/correction';
 import {LUNCH_END, LUNCH_START, numberParts} from '@/server/domain/planning/lunchBreak';
 import {createRateLimiter} from '@/server/http/rateLimit';
 import {fail, serverError} from '@/server/http/apiResponse';
@@ -90,6 +91,7 @@ export async function POST() {
         let sacrifices: Sacrifice[] = [];
         let note = '';
         let lastRejection = '';
+        let accepted = '';
 
         // Un modèle ouvert échoue plus souvent à respecter le contrat de sortie
         // qu'un modèle propriétaire ; une seconde tentative suffit en pratique.
@@ -121,6 +123,7 @@ export async function POST() {
                 slots = parseSchedule(raw);
                 sacrifices = parseSacrifices(raw);
                 note = parseNote(raw);
+                accepted = raw;
             } catch (error) {
                 if (!(error instanceof InvalidModelResponseError)) {
                     throw error;
@@ -144,9 +147,35 @@ export async function POST() {
 
         const dates = `${weekStartDate.toLocaleDateString('fr')} - ${weekEndDate.toLocaleDateString('fr')}`;
 
-        // Un planning qui viole des règles est gardé et affiché avec ses
+        let violations = checkSchedule(slots, requests, dayWindows);
+
+        // Retry ciblé : une seule tentative, où le modèle corrige sa propre
+        // réponse à partir des violations. On ne garde la correction que si
+        // elle fait mieux ; un échec ici ne coûte jamais le premier planning.
+        if (violations.length > 0) {
+            try {
+                const corrected = await generateWeeklyPlanning(payload, {
+                    previous: accepted,
+                    request: buildCorrectionRequest(violations),
+                });
+                if (corrected) {
+                    const correctedSlots = parseSchedule(corrected);
+                    const correctedViolations = checkSchedule(correctedSlots, requests, dayWindows);
+                    console.warn(`Génération, correction : ${violations.length} → ${correctedViolations.length} violation(s)`);
+                    if (isBetterCorrection(violations, correctedViolations)) {
+                        slots = correctedSlots;
+                        sacrifices = parseSacrifices(corrected);
+                        note = parseNote(corrected);
+                        violations = correctedViolations;
+                    }
+                }
+            } catch (error) {
+                console.error('Génération, correction abandonnée :', error instanceof Error ? error.message : error);
+            }
+        }
+
+        // Un planning qui viole encore des règles est gardé et affiché avec ses
         // violations : c'est à l'utilisateur de décider s'il relance.
-        const violations = checkSchedule(slots, requests, dayWindows);
         // Les deux moitiés d'une séance coupée par la pause portent 1/2 et 2/2.
         const schedule = numberParts(slots).map((slot) => {
             // Une référence inconnue est déjà signalée par checkSchedule : le créneau reste, sans lien.
