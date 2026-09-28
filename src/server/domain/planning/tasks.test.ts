@@ -32,7 +32,7 @@ describe('taskToPlannable', () => {
     });
 
     it('borne les jours par une échéance dans la semaine', () => {
-        const task = taskToPlannable({title: 'Impôts', priority: 3, dueDate: new Date(2026, 9, 2)}, NOW, 't1');
+        const task = taskToPlannable({title: 'Impôts', priority: 3, dueDate: new Date(Date.UTC(2026, 9, 2))}, NOW, 't1');
         expect(task.days).toEqual(['mercredi', 'jeudi', 'vendredi']);
         expect(task.priority).toBe(3);
     });
@@ -43,19 +43,19 @@ describe('taskToPlannable', () => {
     });
 
     it('passe en priorité 1 le jour de l\'échéance, sur ce seul jour', () => {
-        const task = taskToPlannable({title: 'Impôts', priority: 3, dueDate: new Date(2026, 8, 30)}, NOW, 't1');
+        const task = taskToPlannable({title: 'Impôts', priority: 3, dueDate: new Date(Date.UTC(2026, 8, 30))}, NOW, 't1');
         expect(task.priority).toBe(1);
         expect(task.days).toEqual(['mercredi']);
     });
 
     it('passe en priorité 1 une tâche en retard, placée à partir d\'aujourd\'hui', () => {
-        const task = taskToPlannable({title: 'Impôts', priority: 3, dueDate: new Date(2026, 8, 28)}, NOW, 't1');
+        const task = taskToPlannable({title: 'Impôts', priority: 3, dueDate: new Date(Date.UTC(2026, 8, 28))}, NOW, 't1');
         expect(task.priority).toBe(1);
         expect(task.days).toEqual(['mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']);
     });
 
     it('garde la priorité saisie pour une échéance lointaine, sur tous les jours restants', () => {
-        const task = taskToPlannable({title: 'Passeport', priority: 2, dueDate: new Date(2026, 9, 5)}, NOW, 't1');
+        const task = taskToPlannable({title: 'Passeport', priority: 2, dueDate: new Date(Date.UTC(2026, 9, 5))}, NOW, 't1');
         expect(task.priority).toBe(2);
         expect(task.days).toEqual(['mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']);
     });

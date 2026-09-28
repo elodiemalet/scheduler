@@ -26,6 +26,16 @@ function startOfDay(date: Date): Date {
 }
 
 /**
+ * L'échéance est stockée à minuit UTC (Zod convertit "2026-10-02" en
+ * 2026-10-02T00:00Z) ; la lire en heure locale décalerait la date d'un jour
+ * vers l'ouest de l'UTC. On reconstruit donc le jour à partir des composants
+ * UTC, pour obtenir la même date locale quel que soit le fuseau du serveur.
+ */
+function dueDayFromUtc(date: Date): Date {
+    return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+/**
  * Jamais avant aujourd'hui. Une échéance dans la semaine borne la fin ;
  * en retard, lointaine ou absente, la tâche peut aller jusqu'à dimanche.
  */
@@ -41,7 +51,7 @@ function allowedDays(due: Date | null, today: Date): Weekday[] {
 
 export function taskToPlannable(task: TaskInput, now: Date, ref: string): PlannableActivity {
     const today = startOfDay(now);
-    const parsed = task.dueDate ? startOfDay(new Date(task.dueDate)) : null;
+    const parsed = task.dueDate ? dueDayFromUtc(new Date(task.dueDate)) : null;
     // Une date illisible compte comme une tâche sans échéance.
     const due = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
     const dueReached = due !== null && due <= today;
