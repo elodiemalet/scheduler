@@ -6,6 +6,7 @@ import {priorityStyle} from "@/components/uiComponents/priority";
 import {formatClock} from "@/components/uiComponents/format";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
 import {LUNCH_END, LUNCH_START} from "@/server/domain/planning/lunchBreak";
+import {timelineOf} from "@/components/planning/timeline";
 
 /** « 7h – 8h » ; un horaire illisible est affiché tel quel. */
 export function formatSlotTime(slot: ScheduleInterface): string {
@@ -14,19 +15,6 @@ export function formatSlotTime(slot: ScheduleInterface): string {
     } catch {
         return `${slot.startTime} – ${slot.endTime}`;
     }
-}
-
-/** Où glisser la pause : avant le premier créneau qui commence à partir de 12h30. */
-export function lunchIndex(slots: ScheduleInterface[]): number {
-    const lunch = parseTimeToMinutes(LUNCH_START);
-    const index = slots.findIndex((slot) => {
-        try {
-            return parseTimeToMinutes(slot.startTime) >= lunch;
-        } catch {
-            return false;
-        }
-    });
-    return index === -1 ? slots.length : index;
 }
 
 /**
@@ -44,6 +32,50 @@ export function LunchBreak({large, onDark}: { large?: boolean, onDark?: boolean 
             <span className={large ? "text-[13px] leading-[17px]" : "text-xs leading-4"}>{time}</span>
         </div>
     );
+}
+
+/** Un trou d'au moins 30 min entre deux créneaux, avec une idée pour l'occuper. */
+function FreeTime({start, end, idea, large, onDark}: {
+    start: string, end: string, idea: string, large?: boolean, onDark?: boolean,
+}) {
+    const time = `${formatClock(parseTimeToMinutes(start))} – ${formatClock(parseTimeToMinutes(end))}`;
+    return (
+        <div
+            aria-label={`Temps libre, ${time} : ${idea}`}
+            className={`flex flex-col gap-0.5 border-l-2 ${onDark ? "border-line text-line" : "border-butter text-muted"} ${large ? "px-4 py-2" : "px-2.5 py-1.5"}`}
+        >
+            <span className={`eyebrow ${onDark ? "text-line" : "text-muted"}`}>Temps libre</span>
+            <span className={large ? "text-[13px] leading-[17px]" : "text-xs leading-4"}>{time}</span>
+            <span className={`ital mt-0.5 ${onDark ? "" : "text-ink"} ${large ? "text-[17px] leading-[21px]" : "text-sm leading-[18px]"}`}>{idea}</span>
+        </div>
+    );
+}
+
+/**
+ * Une journée dans l'ordre des heures : créneaux, pause de midi, et temps
+ * libre dans les trous. Rien du tout pour une journée sans créneau.
+ */
+export function DayItems({slots, day, seed, priorityOf, onToggle, large, onDark}: {
+    slots: ScheduleInterface[],
+    day: string,
+    /** Le planning : le tirage des idées en dépend, pour varier d'une semaine à l'autre. */
+    seed: string,
+    priorityOf: (activity: string) => number,
+    onToggle: (slot: ScheduleInterface) => void,
+    large?: boolean,
+    onDark?: boolean,
+}) {
+    return timelineOf(slots, day, seed).map((item) => {
+        if (item.kind === "slot") {
+            return <SlotButton key={item.slot._id} slot={item.slot} day={day} priority={priorityOf(item.slot.activity)}
+                               onToggle={onToggle} large={large}/>;
+        }
+        if (item.kind === "lunch") {
+            return <LunchBreak key="lunch" large={large} onDark={onDark}/>;
+        }
+        return <FreeTime key={`free-${item.start}`} start={item.start} end={item.end} idea={item.idea}
+                         large={large} onDark={onDark}/>;
+    });
 }
 
 /**
@@ -87,12 +119,13 @@ export function SlotButton({slot, day, priority, onToggle, large}: {
 }
 
 /** Colonne d'un jour, sur bureau. Le jour même est prune. */
-export default function DayTimeline({day, label, date, isToday, slots, priorityOf, onToggle}: {
+export default function DayTimeline({day, label, date, isToday, slots, seed, priorityOf, onToggle}: {
     day: string,
     label: string,
     date: string,
     isToday: boolean,
     slots: ScheduleInterface[],
+    seed: string,
     priorityOf: (activity: string) => number,
     onToggle: (slot: ScheduleInterface) => void,
 }) {
@@ -108,15 +141,8 @@ export default function DayTimeline({day, label, date, isToday, slots, priorityO
                 </div>
                 {isToday && <div className="ital text-[17px]">aujourd’hui</div>}
             </div>
-            {slots.slice(0, lunchIndex(slots)).map((slot) =>
-                <SlotButton key={slot._id} slot={slot} day={day} priority={priorityOf(slot.activity)}
-                            onToggle={onToggle}/>
-            )}
-            {slots.length > 0 && <LunchBreak onDark={isToday}/>}
-            {slots.slice(lunchIndex(slots)).map((slot) =>
-                <SlotButton key={slot._id} slot={slot} day={day} priority={priorityOf(slot.activity)}
-                            onToggle={onToggle}/>
-            )}
+            <DayItems slots={slots} day={day} seed={seed} priorityOf={priorityOf} onToggle={onToggle}
+                      onDark={isToday}/>
             {slots.length === 0 &&
                 <div className={`ital p-1 text-lg ${isToday ? "text-line" : "text-muted"}`}>Journée libre.</div>
             }

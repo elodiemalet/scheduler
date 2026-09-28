@@ -8,7 +8,7 @@ import {ScheduleInterface} from "@/models/Schedule";
 import {apiService} from "@/services/ApiService";
 import {WEEKDAYS} from "@/server/domain/planning/days";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
-import DayTimeline, {LunchBreak, lunchIndex, SlotButton} from "@/components/planning/DayTimeline";
+import DayTimeline, {DayItems} from "@/components/planning/DayTimeline";
 import GenerateButton from "@/components/planning/GenerateButton";
 import {useWeek} from "@/components/planning/useWeek";
 import Spinner from "@/components/uiComponents/Spinner";
@@ -254,7 +254,7 @@ export default function WeeklyPlanning() {
                 <div className="grid grid-cols-7 items-start gap-3">
                     {days.map((d) =>
                         <DayTimeline key={d.day} day={d.day} label={d.label} date={d.date} isToday={d.isToday}
-                                     slots={d.slots} priorityOf={priorityOf} onToggle={toggle}/>
+                                     slots={d.slots} seed={planning._id} priorityOf={priorityOf} onToggle={toggle}/>
                     )}
                 </div>
             </div>
@@ -297,15 +297,8 @@ export default function WeeklyPlanning() {
                         </div>
                     </div>
                     <div className="-mt-0.5">{legend}</div>
-                    {selected.slots.slice(0, lunchIndex(selected.slots)).map((slot) =>
-                        <SlotButton key={slot._id} slot={slot} day={selected.day} priority={priorityOf(slot.activity)}
-                                    onToggle={toggle} large/>
-                    )}
-                    {selected.slots.length > 0 && <LunchBreak large/>}
-                    {selected.slots.slice(lunchIndex(selected.slots)).map((slot) =>
-                        <SlotButton key={slot._id} slot={slot} day={selected.day} priority={priorityOf(slot.activity)}
-                                    onToggle={toggle} large/>
-                    )}
+                    <DayItems slots={selected.slots} day={selected.day} seed={planning._id}
+                              priorityOf={priorityOf} onToggle={toggle} large/>
                     {selected.slots.length === 0 &&
                         <div className="ital px-0.5 py-2 text-xl text-muted">Journée libre.</div>
                     }
