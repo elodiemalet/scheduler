@@ -55,6 +55,11 @@ describe('activityToPlannable', () => {
     it('traite un timesPerWeek null comme absent', () => {
         expect(activityToPlannable({name: 'X', timesPerWeek: null}).timesPerWeek).toBeNull();
     });
+
+    it('écarte les jours inconnus', () => {
+        expect(activityToPlannable({name: 'X', days: ['lundi', 'funday']}).days)
+            .toEqual(['lundi']);
+    });
 });
 
 describe('externalTaskToPlannable', () => {
