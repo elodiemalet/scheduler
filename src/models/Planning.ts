@@ -41,7 +41,7 @@ export interface PlanningInterface {
 const PlannedActivitySchema = new mongoose.Schema({
     name: {type: String, required: true},
     description: {type: String, default: ""},
-    priority: {type: Number, default: 1},
+    priority: {type: Number, default: 2},
     startTime: {type: String, default: ""},
     endTime: {type: String, default: ""},
     sessions: Number,
