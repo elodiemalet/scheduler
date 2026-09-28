@@ -8,7 +8,7 @@ import {ScheduleInterface} from "@/models/Schedule";
 import {apiService} from "@/services/ApiService";
 import {WEEKDAYS} from "@/server/domain/planning/days";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
-import DayTimeline, {SlotButton} from "@/components/planning/DayTimeline";
+import DayTimeline, {LunchBreak, lunchIndex, SlotButton} from "@/components/planning/DayTimeline";
 import GenerateButton from "@/components/planning/GenerateButton";
 import {useWeek} from "@/components/planning/useWeek";
 import Spinner from "@/components/uiComponents/Spinner";
@@ -297,7 +297,12 @@ export default function WeeklyPlanning() {
                         </div>
                     </div>
                     <div className="-mt-0.5">{legend}</div>
-                    {selected.slots.map((slot) =>
+                    {selected.slots.slice(0, lunchIndex(selected.slots)).map((slot) =>
+                        <SlotButton key={slot._id} slot={slot} day={selected.day} priority={priorityOf(slot.activity)}
+                                    onToggle={toggle} large/>
+                    )}
+                    {selected.slots.length > 0 && <LunchBreak large/>}
+                    {selected.slots.slice(lunchIndex(selected.slots)).map((slot) =>
                         <SlotButton key={slot._id} slot={slot} day={selected.day} priority={priorityOf(slot.activity)}
                                     onToggle={toggle} large/>
                     )}

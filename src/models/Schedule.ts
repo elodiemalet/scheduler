@@ -14,6 +14,9 @@ export interface ScheduleInterface {
     description: string;
     priority: number;
     status: string;
+    /** Rang dans la séance (1 ou 2) quand la pause de midi la coupe ; absent sur les anciens plannings. */
+    part?: number;
+    parts?: number;
 }
 
 export const ScheduleSchema = new mongoose.Schema({
@@ -24,4 +27,6 @@ export const ScheduleSchema = new mongoose.Schema({
     description: {type: String, default: ""},
     priority: {type: Number, default: 1},
     status: {type: String, default: SCHEDULE_STATUS.pending},
+    part: {type: Number, default: 1},
+    parts: {type: Number, default: 1},
 });

@@ -128,6 +128,49 @@ describe('checkSchedule', () => {
             .toEqual(only(/2 séances pour 1 demandée/));
     });
 
+    it('signale un créneau libre pendant la pause de midi', () => {
+        expect(checkSchedule([slot({startTime: '12:00', endTime: '13:00'})], [request()], WINDOWS))
+            .toEqual(only(/pause de midi/));
+    });
+
+    it('tolère un bloc fixe posé pendant la pause', () => {
+        const fixed = request({startTime: '12:00', endTime: '13:00', minSessionMinutes: 60});
+        expect(checkSchedule([slot({startTime: '12:00', endTime: '13:00'})], [fixed], WINDOWS)).toEqual([]);
+    });
+
+    describe('séance coupée par la pause', () => {
+        const long = request({sessionMinutes: 180, minSessionMinutes: 180});
+
+        it('accepte deux parties de part et d’autre de la pause, comptées pour une séance', () => {
+            const slots = [slot({startTime: '11:00', endTime: '12:30'}), slot({startTime: '14:00', endTime: '15:30'})];
+            expect(checkSchedule(slots, [long], WINDOWS)).toEqual([]);
+        });
+
+        it('juge la durée sur le total des deux parties', () => {
+            const slots = [slot({startTime: '11:30', endTime: '12:30'}), slot({startTime: '14:00', endTime: '15:00'})];
+            expect(checkSchedule(slots, [long], WINDOWS)).toEqual(only(/trop courte/));
+        });
+
+        it('signale une partie de moins de 30 min', () => {
+            const slots = [slot({startTime: '12:10', endTime: '12:30'}), slot({startTime: '14:00', endTime: '16:40'})];
+            expect(checkSchedule(slots, [long], WINDOWS)).toEqual(only(/partie trop courte/));
+        });
+
+        it('signale plus de deux parties', () => {
+            const slots = [
+                slot({startTime: '10:00', endTime: '11:00'}),
+                slot({startTime: '11:30', endTime: '12:30'}),
+                slot({startTime: '14:00', endTime: '15:00'}),
+            ];
+            expect(checkSchedule(slots, [long], WINDOWS)).toEqual(only(/plus de deux parties/));
+        });
+
+        it('signale deux parties qui ne sont pas de part et d’autre de la pause', () => {
+            const slots = [slot({startTime: '09:00', endTime: '10:30'}), slot({startTime: '15:00', endTime: '16:30'})];
+            expect(checkSchedule(slots, [long], WINDOWS)).toEqual(only(/plusieurs séances/));
+        });
+    });
+
     it('signale une séance de priorité 1 manquante', () => {
         const essential = request({priority: 1, sessions: 2, minSessionMinutes: 60});
         expect(checkSchedule([slot()], [essential], WINDOWS))

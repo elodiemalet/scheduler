@@ -14,6 +14,7 @@ import {
 } from '@/server/domain/planning/parseSchedule';
 import {toSessionRequests} from '@/server/domain/planning/sessions';
 import {checkSchedule} from '@/server/domain/planning/checkSchedule';
+import {LUNCH_END, LUNCH_START, numberParts} from '@/server/domain/planning/lunchBreak';
 import {createRateLimiter} from '@/server/http/rateLimit';
 import {fail, serverError} from '@/server/http/apiResponse';
 
@@ -66,6 +67,7 @@ export async function POST() {
 
         const payload = JSON.stringify({
             jours: dayWindows,
+            pause: {debut: LUNCH_START, fin: LUNCH_END},
             activites: requests,
         });
 
@@ -130,6 +132,8 @@ export async function POST() {
         // Un planning qui viole des règles est gardé et affiché avec ses
         // violations : c'est à l'utilisateur de décider s'il relance.
         const violations = checkSchedule(slots, requests, dayWindows);
+        // Les deux moitiés d'une séance coupée par la pause portent 1/2 et 2/2.
+        const schedule = numberParts(slots);
         if (violations.length > 0) {
             console.warn(`Génération : ${violations.length} règle(s) non respectée(s)`);
         }
@@ -138,13 +142,13 @@ export async function POST() {
             name: `Planning du ${dates}`,
             days: dayWindows.map((window) => window.jour),
             activities: requests,
-            schedule: slots,
+            schedule,
             violations,
             sacrifices,
             note,
         }).save();
 
-        return Response.json({schedule: slots, violations, sacrifices, note});
+        return Response.json({schedule, violations, sacrifices, note});
     } catch (error) {
         return serverError('POST /api/generate_weekly_planning', error);
     }

@@ -41,6 +41,7 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
 
 ## Entrée
 - "jours" : les jours à planifier, chacun avec "jour", "heure_debut" et "heure_fin". Ne place jamais rien en dehors de ces horaires.
+- "pause" : la pause de midi, de "debut" à "fin", la même chaque jour.
 - "activites" : pour chaque activité :
   - "name", "description"
   - "priority" : 1 = indispensable, 2 = important, 3 = accessoire
@@ -51,17 +52,19 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
   - "startTime" et "endTime" : quand les deux sont renseignés, c'est un bloc fixe
 
 ## Règles
-1. Place exactement "sessions" séances de chaque activité, ni plus ni moins, chacune un jour différent pris dans "days" : jamais deux séances de la même activité le même jour.
+1. Place exactement "sessions" séances de chaque activité, ni plus ni moins, chacune un jour différent pris dans "days" : jamais deux séances de la même activité le même jour (une séance coupée par la pause compte pour une seule, voir règle 6).
 2. "days" liste les jours possibles, pas les jours imposés. Quand "days" compte plus de jours que "sessions", choisis-en seulement "sessions" : aucune séance de cette activité les autres jours, blocs fixes compris.
 3. Chaque séance dure "sessionMinutes".
 4. Un bloc fixe se place exactement de "startTime" à "endTime", les seuls jours choisis : ni déplacé, ni raccourci.
-5. Aucun chevauchement. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
-6. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
-7. Le temps qui reste libre reste libre : ne rallonge aucune séance.
+5. Ne place rien pendant la pause de midi, entre "debut" et "fin" de "pause". Seul un bloc fixe qui tombe sur la pause y reste.
+6. Une séance libre qui ne tient pas avant la pause peut être coupée en deux parties le même jour : la première finit juste avant la pause, la seconde reprend juste après. Chaque partie dure au moins 30 min et leur total fait la durée de la séance. Écris chaque partie comme un créneau de "schedule", avec le même "activity". Ne coupe jamais une séance ailleurs qu'autour de la pause, ni un bloc fixe.
+7. Aucun chevauchement. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
+8. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
+9. Le temps qui reste libre reste libre : ne rallonge aucune séance.
 
 ## Bon sens
 Une fois les règles respectées, organise la semaine comme le ferait une personne sensée, en t'appuyant sur le nom et la description de chaque activité. Ces consignes ne passent jamais avant les règles.
-- Place chaque activité à un moment naturel : un repas à l'heure des repas, le travail exigeant plutôt le matin, les loisirs plutôt en fin de journée.
+- Place chaque activité à un moment naturel : le travail exigeant plutôt le matin, les loisirs plutôt en fin de journée.
 - Équilibre les journées : pas une journée surchargée à côté d'une journée creuse, pas deux gros blocs de concentration d'affilée sans pause.
 
 ## Quand tout ne tient pas

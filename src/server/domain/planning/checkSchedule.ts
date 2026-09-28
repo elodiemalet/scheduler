@@ -2,6 +2,9 @@ import {DayWindow} from './buildDayWindows';
 import {ScheduleSlot} from './parseSchedule';
 import {SessionRequest} from './sessions';
 import {parseTimeToMinutes} from './time';
+import {
+    groupSessions, isSplitAroundLunch, LUNCH_END, LUNCH_START, MIN_PART_MINUTES, overlapsLunch,
+} from './lunchBreak';
 
 /** La seule priorité dont une séance manquante est une faute : 2 et 3 se sacrifient. */
 const UNTOUCHABLE_PRIORITY = 1;
@@ -10,11 +13,16 @@ function describeSlot(slot: ScheduleSlot, index: number): string {
     return `Créneau ${index + 1} (${slot.activity}, ${slot.day} ${slot.startTime}–${slot.endTime})`;
 }
 
+/**
+ * `split` : le créneau partage son jour avec d'autres créneaux de la même activité.
+ * Sa durée ne se juge alors pas seule — checkSplitSession tranche pour le groupe.
+ */
 function checkSlot(
     slot: ScheduleSlot,
     index: number,
     request: SessionRequest | undefined,
     window: DayWindow | undefined,
+    split: boolean,
 ): string[] {
     const label = describeSlot(slot, index);
     const start = parseTimeToMinutes(slot.startTime);
@@ -31,6 +39,12 @@ function checkSlot(
         violations.push(`${label} : hors des horaires du jour (${window.heure_debut}–${window.heure_fin})`);
     }
 
+    // Un bloc fixe posé sur la pause est un choix de l'utilisateur : on le respecte.
+    const fixed = request !== undefined && request.startTime !== '';
+    if (!fixed && overlapsLunch(slot.startTime, slot.endTime)) {
+        violations.push(`${label} : pendant la pause de midi (${LUNCH_START}–${LUNCH_END})`);
+    }
+
     if (!request) {
         violations.push(`${label} : activité inconnue`);
         return violations;
@@ -45,6 +59,10 @@ function checkSlot(
             violations.push(
                 `${label} : bloc fixe déplacé ou raccourci (attendu ${request.startTime}–${request.endTime})`,
             );
+        }
+    } else if (split) {
+        if (end - start < MIN_PART_MINUTES) {
+            violations.push(`${label} : partie trop courte (minimum ${MIN_PART_MINUTES} min)`);
         }
     } else if (end - start < request.minSessionMinutes) {
         violations.push(`${label} : séance trop courte (minimum ${request.minSessionMinutes} min)`);
@@ -78,15 +96,33 @@ function checkOverlaps(slots: readonly ScheduleSlot[]): string[] {
     return violations;
 }
 
+function minutesOf(slot: ScheduleSlot): number {
+    return parseTimeToMinutes(slot.endTime) - parseTimeToMinutes(slot.startTime);
+}
+
+/**
+ * Plusieurs créneaux d'une activité le même jour ne sont admis que comme les deux
+ * parties d'une séance coupée par la pause ; la durée se juge alors sur leur total.
+ */
+function checkSplitSession(group: readonly ScheduleSlot[], request: SessionRequest | undefined): string[] {
+    const {activity, day} = group[0];
+    if (group.length > 2) {
+        return [`${activity} : plus de deux parties le ${day}`];
+    }
+    if (!isSplitAroundLunch(group[0], group[1])) {
+        return [`${activity} : plusieurs séances le ${day}`];
+    }
+    const total = group.reduce((sum, slot) => sum + minutesOf(slot), 0);
+    if (request && request.startTime === '' && total < request.minSessionMinutes) {
+        return [`${activity} : séance du ${day} trop courte en deux parties (minimum ${request.minSessionMinutes} min)`];
+    }
+    return [];
+}
+
 function checkCounts(slots: readonly ScheduleSlot[], request: SessionRequest): string[] {
     const violations: string[] = [];
-    const days = slots.filter((slot) => slot.activity === request.name).map((slot) => slot.day);
-
-    for (const day of new Set(days)) {
-        if (days.filter((d) => d === day).length > 1) {
-            violations.push(`${request.name} : plusieurs séances le ${day}`);
-        }
-    }
+    // Une séance par jour : deux parties le même jour n'en font qu'une.
+    const days = [...new Set(slots.filter((slot) => slot.activity === request.name).map((slot) => slot.day))];
 
     if (days.length > request.sessions) {
         violations.push(`${request.name} : ${days.length} séances pour ${request.sessions} demandée(s)`);
@@ -112,11 +148,15 @@ export function checkSchedule(
 ): string[] {
     const requestByName = new Map(requests.map((request) => [request.name, request]));
     const windowByDay = new Map(windows.map((window) => [window.jour, window]));
+    const valid = slots.filter((slot) => minutesOf(slot) > 0);
+    const groups = groupSessions(valid).filter((group) => group.length > 1);
+    const split = new Set(groups.flat());
 
     return [
         ...slots.flatMap((slot, index) =>
-            checkSlot(slot, index, requestByName.get(slot.activity), windowByDay.get(slot.day))),
+            checkSlot(slot, index, requestByName.get(slot.activity), windowByDay.get(slot.day), split.has(slot))),
         ...checkOverlaps(slots),
+        ...groups.flatMap((group) => checkSplitSession(group, requestByName.get(group[0].activity))),
         ...requests.flatMap((request) => checkCounts(slots, request)),
     ];
 }
