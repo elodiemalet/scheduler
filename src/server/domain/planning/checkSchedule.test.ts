@@ -187,4 +187,28 @@ describe('checkSchedule, références de tâche', () => {
         expect(checkSchedule([slot({ref: 't9'})], [request({ref: 't1'})], WINDOWS))
             .toEqual(only(/référence inconnue \(t9\)/));
     });
+
+    it('ne confond pas une activité et une tâche de même nom', () => {
+        const requests = [
+            request({name: 'Sport'}),
+            request({name: 'Sport', ref: 't1', days: ['mardi']}),
+        ];
+        const slots = [
+            slot({activity: 'Sport', day: 'lundi'}),
+            slot({activity: 'Sport', day: 'mardi', ref: 't1'}),
+        ];
+        expect(checkSchedule(slots, requests, WINDOWS)).toEqual([]);
+    });
+
+    it('ne confond pas deux tâches de même nom', () => {
+        const requests = [
+            request({name: 'Appeler', ref: 't1'}),
+            request({name: 'Appeler', ref: 't2', days: ['mardi']}),
+        ];
+        const slots = [
+            slot({activity: 'Appeler', day: 'lundi', ref: 't1'}),
+            slot({activity: 'Appeler', day: 'mardi', ref: 't2'}),
+        ];
+        expect(checkSchedule(slots, requests, WINDOWS)).toEqual([]);
+    });
 });

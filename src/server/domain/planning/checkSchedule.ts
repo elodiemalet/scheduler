@@ -46,7 +46,10 @@ function checkSlot(
     }
 
     if (!request) {
-        violations.push(`${label} : activité inconnue`);
+        // Une référence inconnue est déjà signalée par checkRefs ; ne pas la doubler ici.
+        if (slot.ref === undefined) {
+            violations.push(`${label} : activité inconnue`);
+        }
         return violations;
     }
 
@@ -119,10 +122,19 @@ function checkSplitSession(group: readonly ScheduleSlot[], request: SessionReque
     return [];
 }
 
+/**
+ * Un créneau avec `ref` appartient à la tâche de cette référence ; sans `ref`, il
+ * ne peut appartenir qu'à une activité elle-même sans référence — ce qui évite de
+ * confondre une activité et une tâche (ou deux tâches) de même nom.
+ */
+function matchesRequest(slot: ScheduleSlot, request: SessionRequest): boolean {
+    return request.ref !== undefined ? slot.ref === request.ref : slot.ref === undefined && slot.activity === request.name;
+}
+
 function checkCounts(slots: readonly ScheduleSlot[], request: SessionRequest): string[] {
     const violations: string[] = [];
     // Une séance par jour : deux parties le même jour n'en font qu'une.
-    const days = [...new Set(slots.filter((slot) => slot.activity === request.name).map((slot) => slot.day))];
+    const days = [...new Set(slots.filter((slot) => matchesRequest(slot, request)).map((slot) => slot.day))];
 
     if (days.length > request.sessions) {
         violations.push(`${request.name} : ${days.length} séances pour ${request.sessions} demandée(s)`);
@@ -154,7 +166,14 @@ export function checkSchedule(
     requests: readonly SessionRequest[],
     windows: readonly DayWindow[],
 ): string[] {
-    const requestByName = new Map(requests.map((request) => [request.name, request]));
+    // Un créneau se résout par `ref` s'il en porte une (parmi les requêtes de cette
+    // référence), sinon par nom, mais seulement parmi les requêtes sans référence :
+    // une tâche ne doit jamais absorber le créneau d'une activité de même nom.
+    const requestsByRef = new Map(requests.flatMap((request) => request.ref ? [[request.ref, request] as const] : []));
+    const requestsByName = new Map(
+        requests.filter((request) => request.ref === undefined).map((request) => [request.name, request]));
+    const resolveRequest = (slot: ScheduleSlot): SessionRequest | undefined =>
+        slot.ref !== undefined ? requestsByRef.get(slot.ref) : requestsByName.get(slot.activity);
     const windowByDay = new Map(windows.map((window) => [window.jour, window]));
     const valid = slots.filter((slot) => minutesOf(slot) > 0);
     const groups = groupSessions(valid).filter((group) => group.length > 1);
@@ -162,9 +181,9 @@ export function checkSchedule(
 
     return [
         ...slots.flatMap((slot, index) =>
-            checkSlot(slot, index, requestByName.get(slot.activity), windowByDay.get(slot.day), split.has(slot))),
+            checkSlot(slot, index, resolveRequest(slot), windowByDay.get(slot.day), split.has(slot))),
         ...checkOverlaps(slots),
-        ...groups.flatMap((group) => checkSplitSession(group, requestByName.get(group[0].activity))),
+        ...groups.flatMap((group) => checkSplitSession(group, resolveRequest(group[0]))),
         ...requests.flatMap((request) => checkCounts(slots, request)),
         ...checkRefs(slots, requests),
     ];
