@@ -18,7 +18,7 @@ const MAX_TIME_TO_SPEND = 10_000;
  * — `ActivityForm` envoie `_id` à chaque soumission et doit continuer à passer.
  */
 export const activityInputSchema = z.object({
-    name: z.string().min(1).max(MAX_NAME),
+    name: z.string().trim().min(1).max(MAX_NAME),
     description: z.string().max(MAX_TEXT).optional(),
     priority: z.number().int().min(1).max(3).optional(),
     startDate: z.coerce.date().optional(),
