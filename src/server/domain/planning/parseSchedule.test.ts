@@ -85,6 +85,20 @@ describe('parseSchedule', () => {
         expect(() => parseSchedule(response([VALID_SLOT, {...VALID_SLOT, day: 'funday'}])))
             .toThrow(/créneau 2/i);
     });
+
+    it('lit la référence d\'une tâche', () => {
+        const [slot] = parseSchedule(response([{...VALID_SLOT, ref: ' t1 '}]));
+        expect(slot.ref).toBe('t1');
+    });
+
+    it('ignore une référence absente, vide ou non textuelle sans lever', () => {
+        const slots = parseSchedule(response([
+            VALID_SLOT,
+            {...VALID_SLOT, ref: ''},
+            {...VALID_SLOT, ref: 42},
+        ]));
+        expect(slots.every((slot) => !('ref' in slot))).toBe(true);
+    });
 });
 
 describe('parseSacrifices', () => {

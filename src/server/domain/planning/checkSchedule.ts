@@ -137,6 +137,14 @@ function checkCounts(slots: readonly ScheduleSlot[], request: SessionRequest): s
     return violations;
 }
 
+function checkRefs(slots: readonly ScheduleSlot[], requests: readonly SessionRequest[]): string[] {
+    const known = new Set(requests.flatMap((request) => request.ref ? [request.ref] : []));
+    return slots.flatMap((slot, index) =>
+        slot.ref !== undefined && !known.has(slot.ref)
+            ? [`${describeSlot(slot, index)} : référence inconnue (${slot.ref})`]
+            : []);
+}
+
 /**
  * Vérifie ce qui se contrôle mécaniquement dans la réponse du modèle. Ne juge
  * pas l'arbitrage : quelles séances il a sacrifiées reste son choix.
@@ -158,5 +166,6 @@ export function checkSchedule(
         ...checkOverlaps(slots),
         ...groups.flatMap((group) => checkSplitSession(group, requestByName.get(group[0].activity))),
         ...requests.flatMap((request) => checkCounts(slots, request)),
+        ...checkRefs(slots, requests),
     ];
 }

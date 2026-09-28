@@ -177,3 +177,14 @@ describe('checkSchedule', () => {
             .toEqual(only(/priorité 1/));
     });
 });
+
+describe('checkSchedule, références de tâche', () => {
+    it('accepte un créneau dont la référence est connue', () => {
+        expect(checkSchedule([slot({ref: 't1'})], [request({ref: 't1'})], WINDOWS)).toEqual([]);
+    });
+
+    it('signale une référence inconnue', () => {
+        expect(checkSchedule([slot({ref: 't9'})], [request({ref: 't1'})], WINDOWS))
+            .toEqual(only(/référence inconnue \(t9\)/));
+    });
+});

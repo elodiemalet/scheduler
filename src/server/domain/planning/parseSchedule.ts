@@ -14,6 +14,8 @@ export interface ScheduleSlot {
     endTime: string;
     activity: string;
     description: string;
+    /** Référence de tâche ponctuelle recopiée par le modèle ; absente pour une activité. */
+    ref?: string;
 }
 
 function asRecord(value: unknown, position: number): Record<string, unknown> {
@@ -55,12 +57,17 @@ function toSlot(value: unknown, index: number): ScheduleSlot {
         );
     }
 
+    // Facultatif : une référence manquante ou mal formée laisse le créneau
+    // sans lien vers sa tâche, elle ne justifie pas de rejeter la réponse.
+    const ref = typeof slot.ref === 'string' ? slot.ref.trim() : '';
+
     return {
         day,
         startTime: readTime(slot, 'start_time', position),
         endTime: readTime(slot, 'end_time', position),
         activity: activity.trim(),
         description: typeof slot.description === 'string' ? slot.description : '',
+        ...(ref !== '' ? {ref} : {}),
     };
 }
 
