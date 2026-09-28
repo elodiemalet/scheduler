@@ -15,6 +15,9 @@ export interface ActivityInterface {
     timeAlreadySpent: number;
     days: Array<string>;
     _id: string | null | undefined;
+    /** Posé par Mongoose (`timestamps`) ; absent des documents plus anciens. */
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 import mongoose from 'mongoose';
@@ -36,6 +39,10 @@ export const ActivitySchema = new mongoose.Schema({
     timeToSpend: Number,
     timesPerWeek: Number,
     days: {type: [String], enum: WEEKDAYS, default: []},
+}, {
+    // `updatedAt` dit à l'accueil qu'une activité a changé depuis la dernière
+    // génération (bandeau « Tes activités ont changé »).
+    timestamps: true,
 });
 
 export default mongoose.models.Activity || mongoose.model('Activity', ActivitySchema);

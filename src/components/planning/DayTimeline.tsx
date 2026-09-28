@@ -1,59 +1,85 @@
 "use client";
 
 import {ScheduleInterface} from "@/models/Schedule";
-import {PlanningInterface} from "@/models/Planning";
-import {apiService} from "@/services/ApiService";
+import {CheckIcon} from "@/components/uiComponents/icons/icons";
+import {priorityStyle} from "@/components/uiComponents/priority";
+import {formatClock} from "@/components/uiComponents/format";
+import {parseTimeToMinutes} from "@/server/domain/planning/time";
 
-export default function DayTimeline({scheduleList, planning, onScheduleListUpdatedAction}: {
-    planning: PlanningInterface,
-    scheduleList: ScheduleInterface[],
-    onScheduleListUpdatedAction: () => void
+/** « 7h – 8h » ; un horaire illisible est affiché tel quel. */
+export function formatSlotTime(slot: ScheduleInterface): string {
+    try {
+        return `${formatClock(parseTimeToMinutes(slot.startTime))} – ${formatClock(parseTimeToMinutes(slot.endTime))}`;
+    } catch {
+        return `${slot.startTime} – ${slot.endTime}`;
+    }
+}
+
+/**
+ * Un créneau. Fond = couleur soutenue de la priorité, toujours ; fait = une
+ * coche, rien d'autre ; contour = couleur vive. Un clic bascule fait / à faire.
+ */
+export function SlotButton({slot, day, priority, onToggle, large}: {
+    slot: ScheduleInterface,
+    day: string,
+    priority: number,
+    onToggle: (slot: ScheduleInterface) => void,
+    large?: boolean,
 }) {
-
-
-    function changeStatus(schedule: ScheduleInterface) {
-        const newStatus = schedule.status === "pending" ? "done" : "pending";
-
-        apiService.post(`/api/schedule/status`, {
-            status: newStatus,
-            id: schedule._id,
-            planningId: planning._id,
-        }).then(() => {
-            onScheduleListUpdatedAction();
-        })
-    }
-
-    function getBgColor(schedule: ScheduleInterface) {
-        return schedule.status === "done" ? "bg-green-500" : "bg-indigo-500";
-    }
+    const style = priorityStyle(priority);
+    const done = slot.status === "done";
+    const time = formatSlotTime(slot);
 
     return (
-        <ol className="relative border-s border-gray-200 dark:border-gray-700 pt-2">
-            {scheduleList.map((schedule: ScheduleInterface, index: number) =>
-                <li
-                    key={index}
-                    className="mb-4 ms-4">
-                    <div
-                        onDoubleClick={() => changeStatus(schedule)}
-                        className={`cursor-pointer absolute w-4 h-4 ${getBgColor(schedule)} rounded-full mt-1 -start-2`}
-                    >
-                        <span
-                            className="absolute top-0 left-0 w-full h-full flex items-center justify-center text-white text-xs font-bold">
+        <button
+            type="button"
+            aria-pressed={done}
+            aria-label={`${slot.activity}, priorité ${style.label.toLowerCase()}, ${day} ${time}, ${done ? "fait" : "à faire"}`}
+            title={slot.description || undefined}
+            onClick={() => onToggle(slot)}
+            className={`flex w-full border text-left text-ink transition-[transform,box-shadow] duration-100 hover:-translate-y-px hover:shadow-[0_0_0_3px_var(--color-line)] ${style.softBg} ${style.dotBorder} ${large ? "min-h-16 items-center gap-3.5 rounded-[20px] px-4 py-3" : "items-start gap-[9px] rounded-2xl px-2.5 pt-2.5 pb-[11px]"}`}
+        >
+            <span
+                className={`flex shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink ${large ? "size-[26px]" : "mt-px size-[18px]"} ${done ? "bg-ink text-butter" : "bg-transparent"}`}>
+                {done && <CheckIcon size={large ? 13 : 10}/>}
+            </span>
+            <span className="flex min-w-0 flex-col gap-px">
+                <span className={`font-bold ${large ? "text-[17px] leading-[21px]" : "text-sm leading-[18px]"}`}>{slot.activity}</span>
+                <span className={large ? "text-[13px] leading-[17px]" : "text-xs leading-4"}>{time}</span>
+            </span>
+        </button>
+    );
+}
 
-                        </span>
-                    </div>
-                    <time className="mb-1 text-sm font-normal leading-none text-gray-400 dark:text-gray-500">
-                        {schedule.startTime} - {schedule.endTime}
-                    </time>
-                    <h4 className="text font-semibold text-gray-900 dark:text-white">
-                        {schedule.activity}
-                    </h4>
-                    <p className="mb-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                        {schedule.description}
-                    </p>
-                </li>
+/** Colonne d'un jour, sur bureau. Le jour même est prune. */
+export default function DayTimeline({day, label, date, isToday, slots, priorityOf, onToggle}: {
+    day: string,
+    label: string,
+    date: string,
+    isToday: boolean,
+    slots: ScheduleInterface[],
+    priorityOf: (activity: string) => number,
+    onToggle: (slot: ScheduleInterface) => void,
+}) {
+    return (
+        <section
+            aria-label={`${day} ${date}`}
+            className={`flex min-w-0 flex-col gap-2.5 rounded-3xl border px-3 pt-4 pb-3 ${isToday ? "border-ink bg-ink text-butter" : "border-line bg-cream text-ink"}`}
+        >
+            <div className="flex items-baseline justify-between px-1 pb-1">
+                <div className="flex flex-col">
+                    <div className={`eyebrow ${isToday ? "text-butter" : "text-ink"}`}>{label}</div>
+                    <div className="serif text-4xl leading-[38px]">{date}</div>
+                </div>
+                {isToday && <div className="ital text-[17px]">aujourd’hui</div>}
+            </div>
+            {slots.map((slot) =>
+                <SlotButton key={slot._id} slot={slot} day={day} priority={priorityOf(slot.activity)}
+                            onToggle={onToggle}/>
             )}
-        </ol>
-    )
-
+            {slots.length === 0 &&
+                <div className={`ital p-1 text-lg ${isToday ? "text-line" : "text-muted"}`}>Journée libre.</div>
+            }
+        </section>
+    );
 }

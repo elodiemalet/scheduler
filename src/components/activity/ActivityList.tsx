@@ -1,157 +1,137 @@
 "use client";
 
-import {ActivityInterface} from "@/models/Activity";
 import {useEffect, useState} from "react";
-import {apiService} from "@/services/ApiService";
-import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {toast} from "react-toastify";
-import Link from "next/link";
+import {ActivityInterface} from "@/models/Activity";
+import {apiService} from "@/services/ApiService";
+import ActivityCard, {ActivityPatch} from "@/components/activity/ActivityCard";
+import AddActivityDialog from "@/components/activity/AddActivityDialog";
+import FixedTimesPanel from "@/components/activity/FixedTimesPanel";
+import {notifySchedulerChanged} from "@/components/planning/useWeek";
+import {BaseButton} from "@/components/uiComponents/BaseButton";
+import Spinner from "@/components/uiComponents/Spinner";
+import {PlusIcon} from "@/components/uiComponents/icons/icons";
+import {formatTimes} from "@/components/uiComponents/format";
+import {effectiveTimes} from "@/components/activity/activityRules";
 
+/**
+ * Écran Activités : cartes éditables sur place, carte « Une nouvelle envie ? »
+ * et panneau des horaires fixes. Chaque modification part aussitôt vers l'API ;
+ * l'état local est mis à jour d'abord, puis rechargé si l'API refuse.
+ */
 export default function ActivityList() {
+    const [activities, setActivities] = useState<ActivityInterface[] | null>(null);
+    const [version, setVersion] = useState(0);
+    const [adding, setAdding] = useState(false);
 
-
-    // get activities from API
-    const [activities, setActivities] = useState<ActivityInterface[]>([]);
-    // function to get activities from API
-    async function getActivities() {
-        const response = await apiService.get<{ data: ActivityInterface[] }>('/api/activity');
-        setActivities(response.data);
-    }
-
-    // Fetch activities on component mount
     useEffect(() => {
-        getActivities();
-    }, []);
+        let alive = true;
+        apiService.get<{ data: ActivityInterface[] }>("/api/activity")
+            .then((response) => {
+                if (alive) setActivities(response.data);
+            })
+            .catch(() => {
+                if (!alive) return;
+                setActivities([]);
+                toast.error("Impossible de charger tes activités.");
+            });
+        return () => {
+            alive = false;
+        };
+    }, [version]);
 
-    // function to delete an activity
-    async function deleteActivity(index: string | null | undefined) {
-        if (typeof index !== 'string') return;
-        if (!confirm('Are you sure you want to delete this activity?')) return;
+    const reload = () => setVersion((v) => v + 1);
 
-        await apiService.delete<{ index: string }, void>(`/api/activity`, {index})
-            .then(() => {
-                toast.success('L\'activité a été supprimée avec succès');
-                getActivities();
+    function save(id: string, patch: ActivityPatch) {
+        setActivities((list) => list && list.map((a) => a._id === id ? {...a, ...patch} : a));
+        apiService.post(`/api/activity/${id}`, patch)
+            .then(() => notifySchedulerChanged())
+            .catch(() => {
+                toast.error("La modification n’a pas été enregistrée.");
+                reload();
             });
     }
 
-    return <div className="w-full shrink-0 overflow-x-auto bg-white shadow-md dark:bg-gray-800 sm:rounded-lg">
-        <div className="flex flex-col justify-end w-full">
-            <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 uppercase whitespace-nowrap bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-                <tr>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Nom
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Description
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Jours
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Priorité
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Dates
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Heures
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Terminée
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Active
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Durée d&apos;une séance (min)
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Fois / semaine
-                    </th>
-                    <th scope="col" className="p-4 font-medium text-left">
-                        Déjà passé (min)
-                    </th>
-                    <th></th>
-                </tr>
-                </thead>
-                <tbody className="text-sm text-left font-medium text-gray-900 dark:text-gray-400">
-                {activities.map((activity, index) =>
-                    <tr key={index}>
-                        <td className="p-4 font-bold text-left">
-                            {activity.name}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.description}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.days?.join(', ')}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.priority}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.startDate && `s: ${activity.startDate?.toLocaleDateString()}`}
-                            {activity.startDate && activity.endDate && '/'}
-                            {activity.endDate && `e: ${activity.endDate?.toLocaleDateString()}`}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.startTime && `s: ${activity.startTime}`}
-                            {activity.startTime && activity.endTime && '/'}
-                            {activity.endTime && `e: ${activity.endTime}`}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.isCompleted ? 'Oui' : 'Non'}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.isActive ? 'Oui' : 'Non'}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.timeToSpend}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.timesPerWeek ?? '—'}
-                        </td>
-                        <td className="p-4 font-medium text-left">
-                            {activity.timeAlreadySpent}
-                        </td>
-                        <td className="flex gap-2 p-4 font-medium text-left">
-                            <Link href={`/activity/edit/${activity._id}`}>
-                                <BaseButton
-                                    theme="secondary"
-                                    size="small"
-                                >
-                                    <svg className="w-4 h-4 text-white" aria-hidden="true"
-                                         xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
-                                         viewBox="0 0 24 24">
-                                        <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"
-                                              strokeWidth="2"
-                                              d="m14.304 4.844 2.852 2.852M7 7H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-4.5m2.409-9.91a2.017 2.017 0 0 1 0 2.853l-6.844 6.844L8 14l.713-3.565 6.844-6.844a2.015 2.015 0 0 1 2.852 0Z"/>
-                                    </svg>
+    function remove(activity: ActivityInterface) {
+        if (typeof activity._id !== "string") return;
+        const id = activity._id;
+        setActivities((list) => list && list.filter((a) => a._id !== id));
+        apiService.delete<{ index: string }, void>("/api/activity", {index: id})
+            .then(() => {
+                toast.success(`« ${activity.name} » est supprimée.`);
+                notifySchedulerChanged();
+            })
+            .catch(() => {
+                toast.error("La suppression a échoué.");
+                reload();
+            });
+    }
 
-                                </BaseButton>
-                            </Link>
-                            <BaseButton
-                                theme="danger"
-                                size="small"
-                                onClick={() => deleteActivity(activity?._id)}
-                            >
-                                <svg className="w-4 h-4 text-white" aria-hidden="true"
-                                     xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
-                                     viewBox="0 0 24 24">
-                                    <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"
-                                          strokeWidth="2"
-                                          d="M5 7h14m-9 3v8m4-8v8M10 3h4a1 1 0 0 1 1 1v3H9V4a1 1 0 0 1 1-1ZM6 7h12v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7Z"/>
-                                </svg>
+    if (activities === null) {
+        return (
+            <div className="flex items-center gap-3 py-10 text-muted" role="status">
+                <Spinner/> Chargement de tes activités…
+            </div>
+        );
+    }
 
-                            </BaseButton>
+    const total = activities.reduce((sum, a) => sum + effectiveTimes({
+        days: a.days ?? [],
+        timesPerWeek: a.timesPerWeek ?? null,
+    }), 0);
 
-                        </td>
-                    </tr>
-                )}
-                </tbody>
-            </table>
+    return (
+        <div className="flex flex-col gap-9 xl:flex-row">
+            <div className="flex min-w-0 grow flex-col gap-3.5 md:gap-5">
+                <div className="flex flex-wrap items-baseline gap-x-3.5">
+                    <h1 className="serif m-0 text-[30px] leading-[34px] md:text-[40px] md:leading-[44px]">
+                        <span className="md:hidden">Tes activités</span>
+                        <span className="hidden md:inline">Ce qui compte pour toi</span>
+                    </h1>
+                    <div className="ital text-[19px] text-muted md:text-[22px]">{formatTimes(total)} par semaine</div>
+                </div>
+
+                <BaseButton theme="soft" size="large" onClick={() => setAdding(true)} className="h-[54px] md:hidden">
+                    <PlusIcon size={18}/> Nouvelle activité
+                </BaseButton>
+
+                <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 min-[1400px]:grid-cols-3">
+                    {activities.map((activity) =>
+                        <ActivityCard
+                            key={activity._id}
+                            activity={activity}
+                            onSave={(patch) => typeof activity._id === "string" && save(activity._id, patch)}
+                            onDelete={() => remove(activity)}
+                        />
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setAdding(true)}
+                        className="hidden min-h-80 flex-col items-center justify-center gap-3.5 rounded-3xl border-[1.5px] border-dashed border-muted bg-transparent px-5 py-7 text-center text-ink transition-[transform,background-color] duration-100 hover:border-solid hover:border-ink hover:bg-butter active:scale-[.97] md:flex"
+                    >
+                        <span className="flex size-16 items-center justify-center rounded-full bg-butter">
+                            <PlusIcon size={24}/>
+                        </span>
+                        <span className="ital text-[28px] leading-[30px]">Une nouvelle envie ?</span>
+                        <span className="text-sm text-muted">Ajouter une activité</span>
+                    </button>
+                </div>
+            </div>
+
+            <FixedTimesPanel
+                activities={activities}
+                onSave={(id, patch) => save(id, patch)}
+            />
+
+            <AddActivityDialog
+                open={adding}
+                onClose={() => setAdding(false)}
+                onCreated={() => {
+                    setAdding(false);
+                    reload();
+                    notifySchedulerChanged();
+                }}
+            />
         </div>
-    </div>;
+    );
 }

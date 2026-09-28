@@ -1,28 +1,43 @@
 import type {Metadata} from "next";
-import {Geist, Geist_Mono} from "next/font/google";
+import localFont from "next/font/local";
 import {connection} from "next/server";
 import "./globals.css";
-import TopNavigation from "@/components/layout/TopNavigation";
-import LeftSidebar from "@/components/layout/LeftSidebar";
+import AppHeader from "@/components/layout/AppHeader";
+import MobileTabBar from "@/components/layout/MobileTabBar";
 // L'entrée `unstyled` n'injecte pas de <style> à l'exécution : un tel élément
 // n'a pas le nonce de la CSP et serait bloqué. La feuille importée ici passe
 // par le pipeline CSS de Next et devient une ressource `'self'`.
 import {ToastContainer} from "react-toastify/unstyled";
 import "react-toastify/ReactToastify.css";
 
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
+// Polices embarquées (licence OFL, fichiers dans ./fonts) plutôt que
+// next/font/google : le build ne dépend pas du réseau, et rien n'est chargé
+// depuis un domaine tiers, ce que la CSP refuserait de toute façon.
+const bricolage = localFont({
+    src: "./fonts/BricolageGrotesque.woff2",
+    variable: "--font-bricolage",
+    weight: "200 800",
+    display: "swap",
 });
 
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
-    subsets: ["latin"],
+const gloock = localFont({
+    src: "./fonts/Gloock.woff2",
+    variable: "--font-gloock",
+    weight: "400",
+    display: "swap",
+});
+
+const instrument = localFont({
+    src: "./fonts/InstrumentSerif-Italic.woff2",
+    variable: "--font-instrument",
+    weight: "400",
+    style: "italic",
+    display: "swap",
 });
 
 export const metadata: Metadata = {
-    title: "Weekly Planner",
-    description: "Generate a weekly planning for your life",
+    title: "scheduler",
+    description: "Ta semaine, rangée selon ce qui compte pour toi",
 };
 
 export default async function RootLayout({children,}: Readonly<{
@@ -33,17 +48,14 @@ export default async function RootLayout({children,}: Readonly<{
     await connection();
 
     return (
-        <html lang="en">
-        <body
-            className={`${geistSans.variable} ${geistMono.variable} antialiased  dark:bg-gray-900 h-screen`}
-        >
-        <TopNavigation/>
-        <LeftSidebar/>
-        <main
-            className="flex flex-col gap-8 row-start-2 items-center sm:items-start sm:ml-64 mt-14 p-4 h-full">
+        <html lang="fr" className={`${bricolage.variable} ${gloock.variable} ${instrument.variable}`}>
+        <body className="min-h-screen antialiased">
+        <AppHeader/>
+        <main className="mx-auto w-full max-w-[1600px] px-5 pb-32 md:px-10 md:pb-10">
             {children}
         </main>
-        <ToastContainer icon={false}/>
+        <MobileTabBar/>
+        <ToastContainer icon={false} position="bottom-right"/>
         </body>
         </html>
     );
