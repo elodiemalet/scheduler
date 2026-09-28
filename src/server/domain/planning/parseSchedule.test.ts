@@ -3,6 +3,8 @@ import {
     InvalidModelResponseError,
     parseSchedule,
     parseSacrifices,
+    parseNote,
+    MAX_NOTE_LENGTH,
 } from '@/server/domain/planning/parseSchedule';
 import fixture from '@/server/domain/planning/__fixtures__/openai-response.json';
 
@@ -125,5 +127,26 @@ describe('parseSacrifices', () => {
 
     it('ne trouve aucun sacrifice dans la fixture, antérieure au champ', () => {
         expect(parseSacrifices(JSON.stringify(fixture))).toEqual([]);
+    });
+});
+
+describe('parseNote', () => {
+    it('lit la note du modèle, sans les espaces autour', () => {
+        expect(parseNote(JSON.stringify({schedule: [], note: '  Sport du lundi au jeudi.  '})))
+            .toBe('Sport du lundi au jeudi.');
+    });
+
+    it('rend une chaîne vide quand le champ est absent ou pas une chaîne', () => {
+        expect(parseNote(JSON.stringify({schedule: []}))).toBe('');
+        expect(parseNote(JSON.stringify({schedule: [], note: 42}))).toBe('');
+    });
+
+    it('rend une chaîne vide sur un JSON illisible, sans lever', () => {
+        expect(parseNote('{ pas du json')).toBe('');
+    });
+
+    it('tronque une note trop longue', () => {
+        const note = parseNote(JSON.stringify({schedule: [], note: 'a'.repeat(MAX_NOTE_LENGTH + 50)}));
+        expect(note).toHaveLength(MAX_NOTE_LENGTH);
     });
 });

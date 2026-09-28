@@ -144,3 +144,22 @@ export function parseSacrifices(raw: string): Sacrifice[] {
         }];
     });
 }
+
+/** Plafond de la note affichée : quelques phrases, pas un rapport. */
+export const MAX_NOTE_LENGTH = 600;
+
+/**
+ * Lit la note où le modèle explique ses choix. Comme parseSacrifices, ne lève
+ * jamais : une note absente ou mal formée n'invalide pas le planning.
+ */
+export function parseNote(raw: string): string {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        return '';
+    }
+
+    const note = (parsed as {note?: unknown} | null)?.note;
+    return typeof note === 'string' ? note.trim().slice(0, MAX_NOTE_LENGTH) : '';
+}

@@ -6,6 +6,7 @@ import {ActivityInput, activityToPlannable} from '@/server/domain/planning/merge
 import {buildDayWindows} from '@/server/domain/planning/buildDayWindows';
 import {
     InvalidModelResponseError,
+    parseNote,
     parseSacrifices,
     parseSchedule,
     Sacrifice,
@@ -70,6 +71,7 @@ export async function POST() {
 
         let slots: ScheduleSlot[] | null = null;
         let sacrifices: Sacrifice[] = [];
+        let note = '';
         let lastRejection = '';
 
         // Un modèle ouvert échoue plus souvent à respecter le contrat de sortie
@@ -101,6 +103,7 @@ export async function POST() {
             try {
                 slots = parseSchedule(raw);
                 sacrifices = parseSacrifices(raw);
+                note = parseNote(raw);
             } catch (error) {
                 if (!(error instanceof InvalidModelResponseError)) {
                     throw error;
@@ -138,9 +141,10 @@ export async function POST() {
             schedule: slots,
             violations,
             sacrifices,
+            note,
         }).save();
 
-        return Response.json({schedule: slots, violations, sacrifices});
+        return Response.json({schedule: slots, violations, sacrifices, note});
     } catch (error) {
         return serverError('POST /api/generate_weekly_planning', error);
     }

@@ -179,6 +179,12 @@ export default function WeeklyPlanning() {
             <span>Tes activités ont changé. <span className="ital text-[17px]">Génère à nouveau</span> pour remettre ta semaine d’aplomb.</span>
         </div>;
 
+    const noteBlock = planning?.note &&
+        <p className="rounded-2xl border border-line px-4 py-3 text-sm">
+            <span className="font-semibold">Pourquoi cette semaine ? </span>
+            <span className="text-muted">{planning.note}</span>
+        </p>;
+
     const violations = planning?.violations ?? [];
     const sacrifices = planning?.sacrifices ?? [];
     const rulesBlock = (violations.length > 0 || sacrifices.length > 0) &&
@@ -243,6 +249,7 @@ export default function WeeklyPlanning() {
                     </div>
                 </div>
                 {staleBanner}
+                {noteBlock}
                 {rulesBlock}
                 <div className="grid grid-cols-7 items-start gap-3">
                     {days.map((d) =>
@@ -257,6 +264,7 @@ export default function WeeklyPlanning() {
                 {title}
                 {hero}
                 {staleBanner}
+                {noteBlock}
                 {rulesBlock}
                 <div className="grid grid-cols-7 gap-[5px]" role="group" aria-label="Jour affiché">
                     {days.map((d, index) => {

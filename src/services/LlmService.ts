@@ -79,10 +79,12 @@ Ne supprime et ne raccourcis jamais une séance de priorité 1.
   "sacrifices": [
     {"activity": "Lecture", "day": "mercredi", "type": "supprimée", "detail": "plus de place après le travail"},
     {"activity": "Anglais", "day": "lundi", "type": "raccourcie", "detail": "60 → 40 min"}
-  ]
+  ],
+  "note": "Sport du lundi au jeudi pour garder le vendredi matin libre ; l'apprentissage le matin, quand on est le plus frais."
 }
 - "activity" reprend exactement le "name" de l'activité.
 - "sacrifices" liste chaque séance supprimée ou raccourcie ; tableau vide si rien n'a été sacrifié.
+- "note" explique en deux ou trois phrases, en tutoyant, les choix principaux de la semaine : pourquoi ces jours, ces horaires, ce qui a dû céder.
 `;
 
 /**

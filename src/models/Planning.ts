@@ -29,6 +29,8 @@ export interface PlanningInterface {
     /** Règles que le modèle n'a pas respectées ; absent sur les anciens plannings. */
     violations?: string[];
     sacrifices?: Sacrifice[];
+    /** Explication des choix par le modèle ; absente sur les anciens plannings. */
+    note?: string;
     timestamp: Date;
 }
 
@@ -70,6 +72,7 @@ const PlanningSchema = new mongoose.Schema({
     schedule: [ScheduleSchema],
     violations: {type: [String], default: []},
     sacrifices: {type: [SacrificeSchema], default: []},
+    note: {type: String, default: ""},
     timestamp: {type: Date, default: Date.now},
 });
 
