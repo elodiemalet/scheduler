@@ -17,6 +17,8 @@ export interface ScheduleInterface {
     /** Rang dans la séance (1 ou 2) quand la pause de midi la coupe ; absent sur les anciens plannings. */
     part?: number;
     parts?: number;
+    /** Tâche ponctuelle que ce créneau réalise ; absent pour une activité. */
+    taskId?: string;
 }
 
 export const ScheduleSchema = new mongoose.Schema({
@@ -29,4 +31,5 @@ export const ScheduleSchema = new mongoose.Schema({
     status: {type: String, default: SCHEDULE_STATUS.pending},
     part: {type: Number, default: 1},
     parts: {type: Number, default: 1},
+    taskId: {type: mongoose.Schema.Types.ObjectId, ref: 'Task'},
 });
