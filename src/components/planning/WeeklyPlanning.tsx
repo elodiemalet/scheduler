@@ -8,6 +8,7 @@ import {ScheduleInterface} from "@/models/Schedule";
 import {apiService} from "@/services/ApiService";
 import {WEEKDAYS} from "@/server/domain/planning/days";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
+import {lunchBreakOf} from "@/server/domain/planning/lunchBreak";
 import DayTimeline, {DayItems} from "@/components/planning/DayTimeline";
 import GenerateButton from "@/components/planning/GenerateButton";
 import {useWeek} from "@/components/planning/useWeek";
@@ -298,6 +299,8 @@ export default function WeeklyPlanning() {
         );
     }
 
+    const lunch = lunchBreakOf(planning);
+
     return (
         <>
             {/* Bureau */}
@@ -323,7 +326,7 @@ export default function WeeklyPlanning() {
                 <div className={`grid items-start gap-2 ${emptyWeekend ? "grid-cols-[repeat(5,minmax(0,1fr))_repeat(2,minmax(0,.5fr))]" : "grid-cols-7"}`}>
                     {days.map((d) =>
                         <DayTimeline key={d.day} day={d.day} label={d.label} date={d.date} isToday={d.isToday}
-                                     slots={d.slots} seed={planning._id} priorityOf={priorityOf} onToggle={toggle}/>
+                                     slots={d.slots} seed={planning._id} lunch={lunch} priorityOf={priorityOf} onToggle={toggle}/>
                     )}
                 </div>
             </div>
@@ -366,7 +369,7 @@ export default function WeeklyPlanning() {
                         </div>
                     </div>
                     <div className="-mt-0.5">{legend}</div>
-                    <DayItems slots={selected.slots} day={selected.day} seed={planning._id}
+                    <DayItems slots={selected.slots} day={selected.day} seed={planning._id} lunch={lunch}
                               priorityOf={priorityOf} onToggle={toggle} large/>
                     {selected.slots.length === 0 &&
                         <div className="ital px-0.5 py-2 text-xl text-muted">Journée libre.</div>

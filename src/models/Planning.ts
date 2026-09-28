@@ -1,6 +1,8 @@
 import {WEEKDAYS} from "@/server/domain/planning/days";
 import mongoose from 'mongoose';
 import {ScheduleInterface, ScheduleSchema} from "@/models/Schedule";
+import {LunchBreak} from "@/server/domain/planning/lunchBreak";
+import {LunchBreakSchema} from "@/models/LunchBreakSchema";
 import {Sacrifice} from "@/server/domain/planning/parseSchedule";
 
 /** Forme d'une activité figée dans un instantané de planning. */
@@ -31,6 +33,8 @@ export interface PlanningInterface {
     sacrifices?: Sacrifice[];
     /** Explication des choix par le modèle ; absente sur les anciens plannings. */
     note?: string;
+    /** Pause au moment de la génération ; `null` sans pause, absente sur les anciens plannings. */
+    lunchBreak?: LunchBreak | null;
     timestamp: Date;
 }
 
@@ -73,6 +77,8 @@ const PlanningSchema = new mongoose.Schema({
     violations: {type: [String], default: []},
     sacrifices: {type: [SacrificeSchema], default: []},
     note: {type: String, default: ""},
+    // Pas de default : absent = ancien planning (pause par défaut), null = pas de pause.
+    lunchBreak: {type: LunchBreakSchema},
     timestamp: {type: Date, default: Date.now},
 });
 

@@ -52,7 +52,7 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
 
 ## Entrée
 - "jours" : les jours à planifier, chacun avec "jour", "heure_debut" et "heure_fin". Ne place jamais rien en dehors de ces horaires.
-- "pause" : la pause de midi, de "debut" à "fin", la même chaque jour.
+- "pause" : la pause de midi, de "debut" à "fin", la même chaque jour. Absente : il n'y a pas de pause.
 - "activites" : pour chaque activité :
   - "name", "description"
   - "priority" : 1 = indispensable, 2 = important, 3 = accessoire
@@ -68,8 +68,8 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
 2. "days" liste les jours possibles, pas les jours imposés. Quand "days" compte plus de jours que "sessions", choisis-en seulement "sessions" : aucune séance de cette activité les autres jours, blocs fixes compris.
 3. Chaque séance dure "sessionMinutes".
 4. Un bloc fixe se place exactement de "startTime" à "endTime", les seuls jours choisis : ni déplacé, ni raccourci.
-5. Ne place rien pendant la pause de midi, entre "debut" et "fin" de "pause". Seul un bloc fixe qui tombe sur la pause y reste.
-6. Une séance libre qui ne tient pas avant la pause peut être coupée en deux parties le même jour : la première finit juste avant la pause, la seconde reprend juste après. Chaque partie dure au moins 30 min et leur total fait la durée de la séance. Écris chaque partie comme un créneau de "schedule", avec le même "activity". Ne coupe jamais une séance ailleurs qu'autour de la pause, ni un bloc fixe.
+5. Si "pause" est présente, ne place rien pendant la pause de midi, entre "debut" et "fin". Seul un bloc fixe qui tombe sur la pause y reste.
+6. Si "pause" est présente, une séance libre qui ne tient pas avant la pause peut être coupée en deux parties le même jour : la première finit juste avant la pause, la seconde reprend juste après. Chaque partie dure au moins 30 min et leur total fait la durée de la séance. Écris chaque partie comme un créneau de "schedule", avec le même "activity". Ne coupe jamais une séance ailleurs qu'autour de la pause, ni un bloc fixe. Sans "pause", ne coupe aucune séance.
 7. Aucun chevauchement. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
 8. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
 9. Le temps qui reste libre reste libre : ne rallonge aucune séance.
