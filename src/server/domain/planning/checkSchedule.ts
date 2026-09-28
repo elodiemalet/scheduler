@@ -3,7 +3,7 @@ import {ScheduleSlot} from './parseSchedule';
 import {SessionRequest} from './sessions';
 import {parseTimeToMinutes} from './time';
 import {
-    groupSessions, isSplitAroundLunch, LUNCH_END, LUNCH_START, MIN_PART_MINUTES, overlapsLunch,
+    groupSessions, isSplitAroundLunch, LunchBreak, MIN_PART_MINUTES, overlapsLunch,
 } from './lunchBreak';
 
 /** La seule priorité dont une séance manquante est une faute : 2 et 3 se sacrifient. */
@@ -23,6 +23,7 @@ function checkSlot(
     request: SessionRequest | undefined,
     window: DayWindow | undefined,
     split: boolean,
+    lunch: LunchBreak | null,
 ): string[] {
     const label = describeSlot(slot, index);
     const start = parseTimeToMinutes(slot.startTime);
@@ -41,8 +42,8 @@ function checkSlot(
 
     // Un bloc fixe posé sur la pause est un choix de l'utilisateur : on le respecte.
     const fixed = request !== undefined && request.startTime !== '';
-    if (!fixed && overlapsLunch(slot.startTime, slot.endTime)) {
-        violations.push(`${label} : pendant la pause de midi (${LUNCH_START}–${LUNCH_END})`);
+    if (lunch && !fixed && overlapsLunch(slot.startTime, slot.endTime, lunch)) {
+        violations.push(`${label} : pendant la pause de midi (${lunch.start}–${lunch.end})`);
     }
 
     if (!request) {
@@ -107,12 +108,12 @@ function minutesOf(slot: ScheduleSlot): number {
  * Plusieurs créneaux d'une activité le même jour ne sont admis que comme les deux
  * parties d'une séance coupée par la pause ; la durée se juge alors sur leur total.
  */
-function checkSplitSession(group: readonly ScheduleSlot[], request: SessionRequest | undefined): string[] {
+function checkSplitSession(group: readonly ScheduleSlot[], request: SessionRequest | undefined, lunch: LunchBreak | null): string[] {
     const {activity, day} = group[0];
     if (group.length > 2) {
         return [`${activity} : plus de deux parties le ${day}`];
     }
-    if (!isSplitAroundLunch(group[0], group[1])) {
+    if (!isSplitAroundLunch(group[0], group[1], lunch)) {
         return [`${activity} : plusieurs séances le ${day}`];
     }
     const total = group.reduce((sum, slot) => sum + minutesOf(slot), 0);
@@ -165,6 +166,7 @@ export function checkSchedule(
     slots: readonly ScheduleSlot[],
     requests: readonly SessionRequest[],
     windows: readonly DayWindow[],
+    lunch: LunchBreak | null,
 ): string[] {
     // Un créneau se résout par `ref` s'il en porte une (parmi les requêtes de cette
     // référence), sinon par nom, mais seulement parmi les requêtes sans référence :
@@ -181,9 +183,9 @@ export function checkSchedule(
 
     return [
         ...slots.flatMap((slot, index) =>
-            checkSlot(slot, index, resolveRequest(slot), windowByDay.get(slot.day), split.has(slot))),
+            checkSlot(slot, index, resolveRequest(slot), windowByDay.get(slot.day), split.has(slot), lunch)),
         ...checkOverlaps(slots),
-        ...groups.flatMap((group) => checkSplitSession(group, resolveRequest(group[0]))),
+        ...groups.flatMap((group) => checkSplitSession(group, resolveRequest(group[0]), lunch)),
         ...requests.flatMap((request) => checkCounts(slots, request)),
         ...checkRefs(slots, requests),
     ];
