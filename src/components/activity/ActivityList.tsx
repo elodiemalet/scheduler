@@ -65,7 +65,10 @@ export default function ActivityList() {
                         Active
                     </th>
                     <th scope="col" className="p-4 font-medium text-left">
-                        Temps à passer (min)
+                        Durée d&apos;une séance (min)
+                    </th>
+                    <th scope="col" className="p-4 font-medium text-left">
+                        Fois / semaine
                     </th>
                     <th scope="col" className="p-4 font-medium text-left">
                         Déjà passé (min)
@@ -106,6 +109,9 @@ export default function ActivityList() {
                         </td>
                         <td className="p-4 font-medium text-left">
                             {activity.timeToSpend}
+                        </td>
+                        <td className="p-4 font-medium text-left">
+                            {activity.timesPerWeek ?? '—'}
                         </td>
                         <td className="p-4 font-medium text-left">
                             {activity.timeAlreadySpent}
