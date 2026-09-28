@@ -99,3 +99,41 @@ export function toggleDay(days: readonly string[], day: string): string[] {
     const next = days.includes(day) ? days.filter((d) => d !== day) : [...days, day];
     return WEEKDAYS.filter((d) => next.includes(d));
 }
+
+/** Plus courte durée qu'on peut taper à la main ; les boutons, eux, restent au pas de 30 min. */
+export const MIN_TYPED_DURATION = 5;
+
+const CLOCK_PATTERN = /^(\d{1,2})\s*(?:[h:]\s*(\d{2})?)?$/i;
+const DURATION_PATTERN = /^(?:(\d{1,2})\s*[h:]\s*(\d{2})?|(\d{1,4})\s*(?:min)?)$/i;
+
+/** « 7 », « 7h », « 7h30 », « 07:30 » → minutes depuis minuit ; `null` si illisible. */
+export function parseClock(text: string): number | null {
+    const match = CLOCK_PATTERN.exec(text.trim());
+    if (!match) return null;
+    const hours = Number(match[1]);
+    const mins = Number(match[2] ?? 0);
+    if (hours > 23 || mins > 59) return null;
+    return hours * 60 + mins;
+}
+
+/** « 45 », « 90 min », « 1h30 », « 1:30 » → minutes ; `null` si illisible ou hors bornes. */
+export function parseDuration(text: string): number | null {
+    const match = DURATION_PATTERN.exec(text.trim());
+    if (!match) return null;
+    let total: number;
+    if (match[3] !== undefined) {
+        total = Number(match[3]);
+    } else {
+        const mins = Number(match[2] ?? 0);
+        if (mins > 59) return null;
+        total = Number(match[1]) * 60 + mins;
+    }
+    return total >= MIN_TYPED_DURATION && total <= LAST_MINUTE ? total : null;
+}
+
+/** Nouvelle fin d'un bloc fixe : la durée suit. `null` si la fin ne tombe pas après le début. */
+export function withEnd(start: number, end: number):
+    { startTime: string, endTime: string, timeToSpend: number } | null {
+    if (end <= start || end > LAST_MINUTE) return null;
+    return {startTime: formatMinutesToTime(start), endTime: formatMinutesToTime(end), timeToSpend: end - start};
+}

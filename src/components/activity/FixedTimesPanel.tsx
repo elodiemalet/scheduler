@@ -5,21 +5,24 @@ import {StepButton} from "@/components/uiComponents/Stepper";
 import {MinusIcon, PlusIcon} from "@/components/uiComponents/icons/icons";
 import {formatClock, formatDays} from "@/components/uiComponents/format";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
-import {fixedStart, shiftBound, TIME_STEP} from "@/components/activity/activityRules";
+import {fixedStart, parseClock, shiftBound, TIME_STEP} from "@/components/activity/activityRules";
+import EditableValue from "@/components/uiComponents/EditableValue";
 import {ActivityPatch} from "@/components/activity/ActivityCard";
 
-function Bound({label, value, onEarlier, onLater}: {
+function Bound({label, value, onEarlier, onLater, onType}: {
     label: string,
-    value: string,
+    value: number,
     onEarlier: (() => void) | null,
     onLater: (() => void) | null,
+    onType: (value: number) => void,
 }) {
     return (
         <>
             <StepButton label={`${label} plus tôt`} onClick={() => onEarlier?.()} disabled={!onEarlier}>
                 <MinusIcon size={10} strokeWidth={3}/>
             </StepButton>
-            <div className="grow text-center text-sm font-bold">{value}</div>
+            <EditableValue value={value} format={formatClock} parse={parseClock} label={label}
+                           onCommit={onType} className="h-[30px] grow text-sm font-bold"/>
             <StepButton label={`${label} plus tard`} onClick={() => onLater?.()} disabled={!onLater}>
                 <PlusIcon size={10} strokeWidth={3}/>
             </StepButton>
@@ -74,12 +77,14 @@ export default function FixedTimesPanel({activities, onSave}: {
                             </div>
                             <div className="flex items-center gap-1">
                                 <Bound label={`Début de ${activity.name}`}
-                                       value={formatClock(parseTimeToMinutes(activity.startTime))}
-                                       onEarlier={shift("start", -TIME_STEP)} onLater={shift("start", TIME_STEP)}/>
+                                       value={parseTimeToMinutes(activity.startTime)}
+                                       onEarlier={shift("start", -TIME_STEP)} onLater={shift("start", TIME_STEP)}
+                                       onType={(next) => shift("start", next - parseTimeToMinutes(activity.startTime))?.()}/>
                                 <div className="px-1 text-sm text-muted" aria-hidden="true">→</div>
                                 <Bound label={`Fin de ${activity.name}`}
-                                       value={formatClock(parseTimeToMinutes(activity.endTime))}
-                                       onEarlier={shift("end", -TIME_STEP)} onLater={shift("end", TIME_STEP)}/>
+                                       value={parseTimeToMinutes(activity.endTime)}
+                                       onEarlier={shift("end", -TIME_STEP)} onLater={shift("end", TIME_STEP)}
+                                       onType={(next) => shift("end", next - parseTimeToMinutes(activity.endTime))?.()}/>
                             </div>
                         </div>
                     );

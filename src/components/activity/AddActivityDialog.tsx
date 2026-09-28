@@ -13,8 +13,11 @@ import PriorityIcon from "@/components/uiComponents/icons/PriorityIcon";
 import {CloseIcon, PlusIcon} from "@/components/uiComponents/icons/icons";
 import {PRIORITIES, priorityStyle} from "@/components/uiComponents/priority";
 import {formatClock, formatDays, formatDuration, formatTimes} from "@/components/uiComponents/format";
+import EditableValue from "@/components/uiComponents/EditableValue";
+import {parseTimeToMinutes} from "@/server/domain/planning/time";
 import {
-    DEFAULT_FIXED_START, fixedTimes, MAX_DURATION, MIN_DURATION, maxTimes, stepDuration, TIME_STEP, toggleDay,
+    DEFAULT_FIXED_START, fixedTimes, MAX_DURATION, MIN_DURATION, maxTimes, parseClock, parseDuration, stepDuration,
+    TIME_STEP, toggleDay, withEnd,
 } from "@/components/activity/activityRules";
 
 const EMPTY_DRAFT = {
@@ -76,13 +79,28 @@ export default function AddActivityDialog({open, onClose, onCreated}: {
     }
 
     const invalid = !draft.name.trim() || draft.days.length === 0;
+    // Horaires tels qu'ils seront enregistrés : la fin se déduit du début et de la durée.
+    const fixed = draft.fixedStart !== null ? fixedTimes(draft.fixedStart, draft.timeToSpend) : null;
+    const fixedEnd = fixed ? parseTimeToMinutes(fixed.endTime) : null;
+
+    /** Début et durée ensemble, le début recalé pour que le bloc finisse avant minuit. */
+    function setTiming(start: number | null, duration: number) {
+        setDraft((previous) => ({
+            ...previous,
+            timeToSpend: duration,
+            fixedStart: start === null ? null : parseTimeToMinutes(fixedTimes(start, duration).startTime),
+        }));
+    }
+
+    function setEnd(end: number) {
+        if (draft.fixedStart === null) return;
+        const next = withEnd(draft.fixedStart, end);
+        if (next) setTiming(draft.fixedStart, next.timeToSpend);
+    }
 
     async function save() {
         if (invalid || saving) return;
         setSaving(true);
-        const fixed = draft.fixedStart !== null
-            ? fixedTimes(draft.fixedStart, draft.timeToSpend)
-            : {startTime: "", endTime: ""};
         try {
             await apiService.post("/api/activity", {
                 name: draft.name.trim(),
@@ -93,7 +111,7 @@ export default function AddActivityDialog({open, onClose, onCreated}: {
                 timeToSpend: draft.timeToSpend,
                 timesPerWeek: Math.min(draft.timesPerWeek, maxTimes(draft.days)),
                 days: draft.days,
-                ...fixed,
+                ...(fixed ?? {startTime: "", endTime: ""}),
             });
             toast.success(`« ${draft.name.trim()} » est ajoutée.`);
             setDraft(EMPTY_DRAFT);
@@ -183,14 +201,16 @@ export default function AddActivityDialog({open, onClose, onCreated}: {
                         <div className="flex flex-col gap-2 rounded-[20px] border border-line px-4 py-3.5">
                             <div className="eyebrow">Durée d’une séance</div>
                             <Stepper
-                                value={formatDuration(draft.timeToSpend)}
-                                valueClassName="serif text-[26px] leading-[30px] md:text-[28px]"
+                                value={<EditableValue value={draft.timeToSpend} format={formatDuration}
+                                                      parse={parseDuration} label="Durée d’une séance"
+                                                      onCommit={(minutes) => setTiming(draft.fixedStart, minutes)}
+                                                      className="serif text-[26px] leading-[30px] md:text-[28px]"/>}
                                 decrementLabel="Séances plus courtes"
                                 incrementLabel="Séances plus longues"
                                 canDecrement={draft.timeToSpend > MIN_DURATION}
                                 canIncrement={draft.timeToSpend < MAX_DURATION}
-                                onDecrement={() => update("timeToSpend", stepDuration(draft.timeToSpend, -1))}
-                                onIncrement={() => update("timeToSpend", stepDuration(draft.timeToSpend, 1))}
+                                onDecrement={() => setTiming(draft.fixedStart, stepDuration(draft.timeToSpend, -1))}
+                                onIncrement={() => setTiming(draft.fixedStart, stepDuration(draft.timeToSpend, 1))}
                             />
                         </div>
                     </div>
@@ -214,7 +234,7 @@ export default function AddActivityDialog({open, onClose, onCreated}: {
                         <DayPicker size="large" selected={draft.days} onToggle={(day) => setDays(toggleDay(draft.days, day))}/>
                     </div>
 
-                    <div className="flex min-h-11 flex-wrap items-center gap-3">
+                    <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-3">
                         <Switch
                             label="Horaire fixe"
                             checked={draft.fixedStart !== null}
@@ -224,11 +244,14 @@ export default function AddActivityDialog({open, onClose, onCreated}: {
                             <div className="text-[15px] font-bold">Horaire fixe</div>
                             <div className="text-xs text-muted">Toujours à la même heure</div>
                         </div>
-                        {draft.fixedStart !== null &&
-                            <div className="w-[150px]">
+                        {draft.fixedStart !== null && fixedEnd !== null &&
+                            <div className="flex w-full items-center gap-2 md:w-auto">
+                                <div className="w-[150px]">
                                 <Stepper
-                                    value={formatClock(draft.fixedStart)}
-                                    valueClassName="serif text-2xl"
+                                    value={<EditableValue value={draft.fixedStart} format={formatClock}
+                                                          parse={parseClock} label="Heure de début"
+                                                          onCommit={(start) => setTiming(start, draft.timeToSpend)}
+                                                          className="serif text-2xl"/>}
                                     decrementLabel="Plus tôt"
                                     incrementLabel="Plus tard"
                                     canDecrement={draft.fixedStart > 0}
@@ -236,6 +259,12 @@ export default function AddActivityDialog({open, onClose, onCreated}: {
                                     onDecrement={() => update("fixedStart", Math.max(0, (draft.fixedStart ?? 0) - TIME_STEP))}
                                     onIncrement={() => update("fixedStart", (draft.fixedStart ?? 0) + TIME_STEP)}
                                 />
+                                </div>
+                                <div className="text-muted" aria-hidden="true">→</div>
+                                <div className="w-[76px]">
+                                    <EditableValue value={fixedEnd} format={formatClock} parse={parseClock}
+                                                   label="Heure de fin" onCommit={setEnd} className="serif h-[30px] text-2xl"/>
+                                </div>
                             </div>
                         }
                     </div>

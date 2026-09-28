@@ -10,9 +10,10 @@ import {BaseButton} from "@/components/uiComponents/BaseButton";
 import {CloseIcon, TrashIcon} from "@/components/uiComponents/icons/icons";
 import {PRIORITIES, priorityStyle} from "@/components/uiComponents/priority";
 import {formatClock, formatDuration, formatTimes} from "@/components/uiComponents/format";
+import EditableValue from "@/components/uiComponents/EditableValue";
 import {
     clampTimes, DEFAULT_FIXED_START, durationOf, effectiveTimes, fixedStart, fixedTimes, MAX_DURATION,
-    MIN_DURATION, maxTimes, stepDuration, TIME_STEP, toggleDay,
+    MIN_DURATION, maxTimes, parseClock, parseDuration, stepDuration, TIME_STEP, toggleDay, withEnd,
 } from "@/components/activity/activityRules";
 
 export type ActivityPatch = Partial<Pick<ActivityInterface,
@@ -67,6 +68,13 @@ export default function ActivityCard({activity, onSave, onDelete}: {
         onSave(start === null
             ? {timeToSpend: next}
             : {timeToSpend: next, ...fixedTimes(start, next)});
+    }
+
+    /** Nouvelle fin : le début reste, la durée suit. */
+    function setEnd(end: number) {
+        if (start === null) return;
+        const next = withEnd(start, end);
+        if (next) onSave(next);
     }
 
     const meta = `${formatTimes(times)} · ${formatDuration(duration)} · ${style.label}`;
@@ -134,8 +142,9 @@ export default function ActivityCard({activity, onSave, onDelete}: {
                 <div className="flex flex-col gap-1 md:gap-1.5">
                     <div className="eyebrow">Durée</div>
                     <Stepper
-                        value={formatDuration(duration)}
-                        valueClassName="text-[15px] font-bold md:text-base"
+                        value={<EditableValue value={duration} format={formatDuration} parse={parseDuration}
+                                              label={`Durée d’une séance de ${activity.name}`} onCommit={setDuration}
+                                              className="h-[30px] text-[15px] font-bold md:text-base"/>}
                         decrementLabel={`Séances plus courtes pour ${activity.name}`}
                         incrementLabel={`Séances plus longues pour ${activity.name}`}
                         canDecrement={duration > MIN_DURATION}
@@ -163,14 +172,22 @@ export default function ActivityCard({activity, onSave, onDelete}: {
                     <div className="flex grow items-center gap-1">
                         <div className="grow">
                             <Stepper
-                                value={`à ${formatClock(start)}`}
-                                valueClassName="text-[15px] font-bold md:text-base"
+                                value={<EditableValue value={start} format={formatClock} parse={parseClock}
+                                                      label={`Heure de début de ${activity.name}`}
+                                                      onCommit={(next) => onSave(fixedTimes(next, duration))}
+                                                      className="h-[30px] text-[15px] font-bold md:text-base"/>}
                                 decrementLabel={`Horaire de ${activity.name} plus tôt`}
                                 incrementLabel={`Horaire de ${activity.name} plus tard`}
                                 canDecrement={start > 0}
                                 onDecrement={() => onSave(fixedTimes(start - TIME_STEP, duration))}
                                 onIncrement={() => onSave(fixedTimes(start + TIME_STEP, duration))}
                             />
+                        </div>
+                        <div className="text-sm text-muted" aria-hidden="true">→</div>
+                        <div className="w-14 shrink-0">
+                            <EditableValue value={start + duration} format={formatClock} parse={parseClock}
+                                           label={`Heure de fin de ${activity.name}`} onCommit={setEnd}
+                                           className="h-[30px] text-[15px] font-bold md:text-base"/>
                         </div>
                         <StepButton ghost label={`Retirer l’horaire fixe de ${activity.name}`}
                                     onClick={() => onSave({startTime: "", endTime: ""})}>
