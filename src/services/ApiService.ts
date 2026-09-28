@@ -4,6 +4,8 @@ interface RequestOptions {
     method?: HttpMethod;
     headers?: Record<string, string>;
     body?: RequestBody<Record<string, string> | string>;
+    /** Abandon côté navigateur : sans lui, fetch attend indéfiniment. */
+    timeoutMs?: number;
 }
 
 export type RequestBody<T> = {
@@ -14,7 +16,7 @@ export type RequestBody<T> = {
 export interface ApiServiceInterface {
     get<Res>(endpoint: string, headers?: Record<string, string> | undefined): Promise<Res>;
 
-    post<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string> | undefined): Promise<Res>;
+    post<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string> | undefined, timeoutMs?: number): Promise<Res>;
 
     put<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string> | undefined): Promise<Res>;
 
@@ -27,7 +29,7 @@ export class ApiService {
 
     async request<Res>(endpoint: string, options: RequestOptions = {}): Promise<Res> {
         const url = endpoint;
-        const {method = 'GET', headers = {}, body} = options;
+        const {method = 'GET', headers = {}, body, timeoutMs} = options;
         const requestBody: RequestBody<Record<string, string> | string> | undefined = body ? body : undefined;
         let contentBody: string | undefined = undefined;
 
@@ -50,6 +52,7 @@ export class ApiService {
                 method,
                 headers: defaultHeaders,
                 body: contentBody,
+                signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
             });
 
             if (!response.ok) {
@@ -78,12 +81,13 @@ export class ApiService {
         });
     }
 
-    public async post<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string>): Promise<Res> {
+    public async post<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string>, timeoutMs?: number): Promise<Res> {
 
         return this.request<Res>(endpoint, {
             method: 'POST',
             body: data as RequestBody<Record<string, string> | string>,
             headers: headers,
+            timeoutMs,
         });
     }
 

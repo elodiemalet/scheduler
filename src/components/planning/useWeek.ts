@@ -83,11 +83,17 @@ export function useWeek() {
     };
 }
 
+/**
+ * Filet de sécurité : le serveur abandonne de lui-même à 2 min (échéance de la
+ * route). Au-delà de 2 min 30, c'est que la connexion elle-même est perdue.
+ */
+const GENERATION_TIMEOUT_MS = 150 * 1000;
+
 /** Lance une génération, prévient l'utilisateur, puis signale le changement. */
 export async function generateWeek(): Promise<boolean> {
     try {
         const result = await apiService.post<Record<string, never>, { violations: string[] }>(
-            "/api/generate_weekly_planning", {},
+            "/api/generate_weekly_planning", {}, undefined, GENERATION_TIMEOUT_MS,
         );
         if (result.violations && result.violations.length > 0) {
             toast.warning("Ta semaine est prête, mais certaines règles ne sont pas respectées.");
@@ -96,8 +102,10 @@ export async function generateWeek(): Promise<boolean> {
         }
         notifySchedulerChanged();
         return true;
-    } catch {
-        toast.error("La génération a échoué. Réessaie dans quelques minutes.");
+    } catch (error) {
+        toast.error(error instanceof DOMException && error.name === "TimeoutError"
+            ? "La génération prend trop de temps. Réessaie dans quelques minutes."
+            : "La génération a échoué. Réessaie dans quelques minutes.");
         return false;
     }
 }

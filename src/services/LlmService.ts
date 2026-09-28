@@ -19,8 +19,19 @@ interface ChatCompletion {
     choices?: Array<{message?: {content?: string | null}}>;
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+/** Attente de reprise, interrompue par l'échéance de la génération. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(signal.reason);
+            return;
+        }
+        const timer = setTimeout(resolve, ms);
+        signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+        }, {once: true});
+    });
 }
 
 /**
@@ -99,7 +110,11 @@ Ne supprime et ne raccourcis jamais une séance de priorité 1.
  */
 export async function generateWeeklyPlanning(
     userJson: string,
-    correction?: {previous: string; request: string},
+    {correction, signal}: {
+        correction?: {previous: string; request: string};
+        /** Échéance globale de la génération : aucune reprise ne la dépasse. */
+        signal?: AbortSignal;
+    } = {},
 ): Promise<string | null> {
     const env = getEnv();
     const body = JSON.stringify({
@@ -133,14 +148,17 @@ export async function generateWeeklyPlanning(
                     Authorization: `Bearer ${env.llmApiKey}`,
                 },
                 body,
-                signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+                signal: signal
+                    ? AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), signal])
+                    : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
             });
         } catch (error) {
-            // Panne réseau ou délai dépassé : le SDK retentait aussi.
-            if (isLastAttempt) {
+            // Panne réseau ou délai dépassé : le SDK retentait aussi. Pas après
+            // l'échéance globale : elle est là précisément pour arrêter.
+            if (isLastAttempt || signal?.aborted) {
                 throw error;
             }
-            await sleep(retryDelayMs(attempt));
+            await sleep(retryDelayMs(attempt), signal);
             continue;
         }
 
@@ -155,7 +173,7 @@ export async function generateWeeklyPlanning(
         }
 
         console.warn(`Modèle : réponse ${response.status}, reprise ${attempt}/${MAX_ATTEMPTS - 1}`);
-        await sleep(retryDelayMs(attempt, response.headers));
+        await sleep(retryDelayMs(attempt, response.headers), signal);
     }
 
     // Inatteignable : la dernière tentative retourne ou lève.

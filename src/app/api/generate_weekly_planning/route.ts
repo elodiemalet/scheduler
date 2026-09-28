@@ -26,6 +26,14 @@ import {fail, serverError} from '@/server/http/apiResponse';
 const GENERATION_ATTEMPTS = 2;
 
 /**
+ * Échéance de toute la génération, reprises et correction comprises. Sans
+ * elle, 9 requêtes de 10 minutes chacune pouvaient s'enchaîner. Le client
+ * attend un peu plus longtemps (voir useWeek), pour toujours recevoir la
+ * réponse du serveur plutôt que d'abandonner avant lui.
+ */
+const GENERATION_DEADLINE_MS = 2 * 60 * 1000;
+
+/**
  * Cinq générations par quart d'heure : très au-dessus de l'usage réel — on
  * régénère une semaine, pas une minute — et assez bas pour qu'un clic bloqué
  * ou une boucle côté client ne coûte que cinq appels au modèle.
@@ -92,13 +100,14 @@ export async function POST() {
         let note = '';
         let lastRejection = '';
         let accepted = '';
+        const deadline = AbortSignal.timeout(GENERATION_DEADLINE_MS);
 
         // Un modèle ouvert échoue plus souvent à respecter le contrat de sortie
         // qu'un modèle propriétaire ; une seconde tentative suffit en pratique.
-        for (let attempt = 1; attempt <= GENERATION_ATTEMPTS && slots === null; attempt++) {
+        for (let attempt = 1; attempt <= GENERATION_ATTEMPTS && slots === null && !deadline.aborted; attempt++) {
             let raw: string | null;
             try {
-                raw = await generateWeeklyPlanning(payload);
+                raw = await generateWeeklyPlanning(payload, {signal: deadline});
             } catch (error) {
                 // 401/403 : la clé est absente ou refusée. Retenter ne changera
                 // rien, et ce n'est pas le modèle qui est en faute — on sort.
@@ -134,9 +143,9 @@ export async function POST() {
         }
 
         if (slots === null) {
-            console.error(
-                `Génération abandonnée après ${GENERATION_ATTEMPTS} tentatives. Dernier rejet : ${lastRejection}`,
-            );
+            console.error(deadline.aborted
+                ? `Génération abandonnée : échéance de ${GENERATION_DEADLINE_MS / 1000} s dépassée`
+                : `Génération abandonnée après ${GENERATION_ATTEMPTS} tentatives. Dernier rejet : ${lastRejection}`);
             return fail(502, 'Le modèle a renvoyé un planning invalide');
         }
 
@@ -152,11 +161,11 @@ export async function POST() {
         // Retry ciblé : une seule tentative, où le modèle corrige sa propre
         // réponse à partir des violations. On ne garde la correction que si
         // elle fait mieux ; un échec ici ne coûte jamais le premier planning.
-        if (violations.length > 0) {
+        if (violations.length > 0 && !deadline.aborted) {
             try {
                 const corrected = await generateWeeklyPlanning(payload, {
-                    previous: accepted,
-                    request: buildCorrectionRequest(violations),
+                    correction: {previous: accepted, request: buildCorrectionRequest(violations)},
+                    signal: deadline,
                 });
                 if (corrected) {
                     const correctedSlots = parseSchedule(corrected);
