@@ -59,6 +59,11 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
 6. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
 7. Le temps qui reste libre reste libre : ne rallonge aucune séance.
 
+## Bon sens
+Une fois les règles respectées, organise la semaine comme le ferait une personne sensée, en t'appuyant sur le nom et la description de chaque activité. Ces consignes ne passent jamais avant les règles.
+- Place chaque activité à un moment naturel : un repas à l'heure des repas, le travail exigeant plutôt le matin, les loisirs plutôt en fin de journée.
+- Équilibre les journées : pas une journée surchargée à côté d'une journée creuse, pas deux gros blocs de concentration d'affilée sans pause.
+
 ## Quand tout ne tient pas
 Applique ces étapes dans l'ordre, et seulement autant que nécessaire :
 1. supprime des séances de priorité 3, les séances libres avant les blocs fixes ;
