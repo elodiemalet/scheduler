@@ -51,7 +51,7 @@ export default async function RootLayout({children,}: Readonly<{
         <html lang="fr" className={`${bricolage.variable} ${gloock.variable} ${instrument.variable}`}>
         <body className="min-h-screen antialiased">
         <AppHeader/>
-        <main className="mx-auto w-full max-w-[1600px] px-5 pb-32 md:px-10 md:pb-10">
+        <main className="mx-auto w-full max-w-[1600px] px-5 pb-32 md:px-10 md:pb-8">
             {children}
         </main>
         <MobileTabBar/>

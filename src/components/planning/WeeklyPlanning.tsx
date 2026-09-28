@@ -13,7 +13,7 @@ import GenerateButton from "@/components/planning/GenerateButton";
 import {useWeek} from "@/components/planning/useWeek";
 import Spinner from "@/components/uiComponents/Spinner";
 import PriorityIcon from "@/components/uiComponents/icons/PriorityIcon";
-import {AlertIcon} from "@/components/uiComponents/icons/icons";
+import {AlertIcon, CloseIcon} from "@/components/uiComponents/icons/icons";
 import {PRIORITIES, priorityStyle} from "@/components/uiComponents/priority";
 import {
     addDays, DAY_SHORT, formatLongDate, formatShortDate, formatTimes, isSameDay, mondayOf,
@@ -52,6 +52,44 @@ function progressOf(planning: PlanningInterface): ProgressRow[] {
         .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name, "fr"));
 }
 
+/**
+ * Bandeaux masquables (règles non respectées, explication du modèle), masqués
+ * pour un planning donné. Préférence locale au navigateur : une nouvelle
+ * génération (autre `_id`) les réaffiche. Lue seulement une fois le planning
+ * chargé, donc jamais au rendu serveur.
+ */
+type Dismissable = "violations" | "note";
+
+function readHidden(kind: Dismissable): string | null {
+    try {
+        return localStorage.getItem(`scheduler:hidden-${kind}`);
+    } catch {
+        return null;
+    }
+}
+
+function writeHidden(kind: Dismissable, planningId: string) {
+    try {
+        localStorage.setItem(`scheduler:hidden-${kind}`, planningId);
+    } catch {
+        // Stockage indisponible : le bandeau reste masqué jusqu'au rechargement.
+    }
+}
+
+function HideButton({onClick}: { onClick: () => void }) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label="Masquer ce message"
+            title="Masquer ce message"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-line hover:text-ink"
+        >
+            <CloseIcon size={13}/>
+        </button>
+    );
+}
+
 function startMinutes(slot: ScheduleInterface): number {
     try {
         return parseTimeToMinutes(slot.startTime);
@@ -63,6 +101,8 @@ function startMinutes(slot: ScheduleInterface): number {
 export default function WeeklyPlanning() {
     const {planning, loaded, stale, setPlanning, reload} = useWeek();
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
+    const [noteOpen, setNoteOpen] = useState(false);
+    const [hidden, setHidden] = useState<Partial<Record<Dismissable, string>>>({});
 
     if (!loaded) {
         return (
@@ -91,6 +131,8 @@ export default function WeeklyPlanning() {
                 .sort((a, b) => startMinutes(a) - startMinutes(b)),
         };
     });
+    // Un week-end sans rien, sur bureau : deux colonnes étroites au lieu de deux pleines.
+    const emptyWeekend = days.slice(5).every((d) => d.slots.length === 0);
     const todayIndex = days.findIndex((d) => d.isToday);
     const selected = days[selectedDay ?? (todayIndex >= 0 ? todayIndex : 0)];
 
@@ -116,19 +158,19 @@ export default function WeeklyPlanning() {
 
     const title = (
         <div className="flex flex-wrap items-baseline gap-x-3.5">
-            <h1 className="serif m-0 text-[30px] leading-[34px] lg:text-[40px] lg:leading-[44px]">
+            <h1 className="serif m-0 text-[30px] leading-[34px] xl:text-[36px] xl:leading-10">
                 Semaine du {formatShortDate(monday)}
             </h1>
-            <div className="ital text-[19px] text-muted lg:text-[22px]">au {formatLongDate(sunday)}</div>
+            <div className="ital text-[19px] text-muted xl:text-[19px]">au {formatLongDate(sunday)}</div>
         </div>
     );
 
     const legend = (
         <div className="flex items-center gap-3.5">
-            <span className="eyebrow hidden lg:inline">Priorité</span>
+            <span className="eyebrow hidden xl:inline">Priorité</span>
             {PRIORITIES.map((p) =>
-                <span key={p.value} className="flex items-center gap-1.5 text-xs font-semibold lg:text-[13px]">
-                    <PriorityIcon priority={p.value} className="size-[9px] lg:size-2.5"/>{p.label}
+                <span key={p.value} className="flex items-center gap-1.5 text-xs font-semibold xl:text-[13px]">
+                    <PriorityIcon priority={p.value} className="size-[9px] xl:size-2.5"/>{p.label}
                 </span>
             )}
         </div>
@@ -136,11 +178,11 @@ export default function WeeklyPlanning() {
 
     const hero = (
         <div
-            className="flex shrink-0 items-center gap-4 rounded-3xl bg-ink px-5 py-[18px] text-cream lg:w-[360px] lg:gap-5 lg:rounded-[28px] lg:px-[26px] lg:py-[22px]">
-            <div className="serif text-[54px] leading-[54px] text-butter lg:text-[76px] lg:leading-[76px]">{percent}%</div>
-            <div className="flex flex-col gap-1 lg:gap-1.5">
-                <div className="ital text-[19px] leading-5 lg:text-[21px] lg:leading-[22px]">
-                    de ta semaine,<br className="hidden lg:inline"/> déjà faite.
+            className="flex shrink-0 items-center gap-4 rounded-3xl bg-ink px-5 py-[18px] text-cream xl:w-[320px] xl:gap-4 xl:rounded-[26px] xl:px-6 xl:py-4">
+            <div className="serif text-[54px] leading-[54px] text-butter xl:text-[64px] xl:leading-[64px]">{percent}%</div>
+            <div className="flex flex-col gap-1 xl:gap-1.5">
+                <div className="ital text-[19px] leading-5 xl:text-[21px] xl:leading-[22px]">
+                    de ta semaine,<br className="hidden xl:inline"/> déjà faite.
                 </div>
                 <div className="text-xs text-line">{done} séances sur {planned} prévues</div>
             </div>
@@ -148,14 +190,14 @@ export default function WeeklyPlanning() {
     );
 
     const progressList = (
-        <div className="grid grid-cols-1 gap-x-5 lg:grid-cols-4 lg:gap-y-3">
+        <div className="grid grid-cols-1 gap-x-5 xl:grid-cols-4 xl:gap-y-2">
             {progress.map((row) =>
                 <div key={row.name}
-                     className="flex min-w-0 flex-col gap-1.5 border-t border-line py-2.5 lg:border-0 lg:py-0">
+                     className="flex min-w-0 flex-col gap-1.5 border-t border-line py-2.5 xl:border-0 xl:py-0">
                     <div className="flex items-baseline gap-1.5">
                         <PriorityIcon priority={row.priority} className="size-2 self-center"/>
-                        <div className="grow truncate text-[15px] font-bold lg:text-sm">{row.name}</div>
-                        <div className="shrink-0 text-[13px] text-muted lg:text-xs">{row.done} / {formatTimes(row.planned)}</div>
+                        <div className="min-w-0 grow break-words hyphens-auto text-[15px] font-bold xl:text-sm">{row.name}</div>
+                        <div className="shrink-0 text-[13px] text-muted xl:text-xs">{row.done} / {formatTimes(row.planned)}</div>
                     </div>
                     <progress
                         max={row.planned}
@@ -164,7 +206,7 @@ export default function WeeklyPlanning() {
                         className={`h-1.5 w-full appearance-none overflow-hidden rounded-[3px] bg-line [&::-webkit-progress-bar]:bg-line [&::-webkit-progress-value]:rounded-[3px] [&::-moz-progress-bar]:rounded-[3px] ${priorityStyle(row.priority).progressFill}`}
                     />
                     {row.missing > 0 &&
-                        <div className="self-start rounded-md bg-butter px-1.5 py-0.5 text-xs font-semibold lg:text-[11px]">
+                        <div className="self-start rounded-md bg-butter px-1.5 py-0.5 text-xs font-semibold xl:text-[11px]">
                             {formatTimes(row.missing)} sans créneau
                         </div>
                     }
@@ -174,31 +216,53 @@ export default function WeeklyPlanning() {
     );
 
     const staleBanner = stale &&
-        <div role="status" className="flex items-center gap-2.5 rounded-2xl bg-butter px-4 py-2.5 text-sm">
-            <AlertIcon className="hidden shrink-0 lg:block"/>
+        <div role="status" className="flex items-center gap-2.5 rounded-2xl bg-butter px-4 py-2.5 text-sm xl:py-1.5">
+            <AlertIcon className="hidden shrink-0 xl:block"/>
             <span>Tes activités ont changé. <span className="ital text-[17px]">Génère à nouveau</span> pour remettre ta semaine d’aplomb.</span>
         </div>;
 
-    const noteBlock = planning?.note &&
-        <p className="rounded-2xl border border-line px-4 py-3 text-sm">
-            <span className="font-semibold">Pourquoi cette semaine ? </span>
-            <span className="text-muted">{planning.note}</span>
-        </p>;
+    const isHidden = (kind: Dismissable) => !!planning
+        && (hidden[kind] === planning._id || readHidden(kind) === planning._id);
 
-    const violations = planning?.violations ?? [];
+    function hide(kind: Dismissable) {
+        if (!planning) return;
+        writeHidden(kind, planning._id);
+        setHidden((previous) => ({...previous, [kind]: planning._id}));
+    }
+
+    const noteBlock = planning?.note && !isHidden("note") &&
+        <div className="flex items-start gap-2 rounded-2xl border border-line py-1.5 ps-4 pe-1.5 text-sm">
+            <div className="flex min-w-0 grow flex-col items-start py-1.5">
+                {/* Deux lignes sur bureau, pour garder la semaine visible sans défiler. */}
+                <p className={`m-0 ${noteOpen ? "" : "xl:line-clamp-2"}`}>
+                    <span className="font-semibold">Pourquoi cette semaine ? </span>
+                    <span className="text-muted">{planning.note}</span>
+                </p>
+                <button type="button" onClick={() => setNoteOpen((open) => !open)} aria-expanded={noteOpen}
+                        className="hidden text-xs font-semibold text-ink underline underline-offset-2 xl:block">
+                    {noteOpen ? "Réduire" : "Lire la suite"}
+                </button>
+            </div>
+            <HideButton onClick={() => hide("note")}/>
+        </div>;
+
+    const violations = isHidden("violations") ? [] : planning?.violations ?? [];
     const sacrifices = planning?.sacrifices ?? [];
     const rulesBlock = (violations.length > 0 || sacrifices.length > 0) &&
         <div className="flex flex-col gap-3">
             {violations.length > 0 &&
                 <div role="alert"
-                     className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-coral px-4 py-3.5 text-sm md:flex-row md:items-start">
+                     className="flex flex-col gap-3 rounded-2xl border-[1.5px] border-coral px-4 py-3.5 text-sm md:flex-row xl:py-2.5 md:items-start">
                     <div className="grow">
                         <p className="font-bold">Cette semaine ne respecte pas toutes les règles.</p>
                         <ul className="mt-1.5 list-disc ps-5">
                             {violations.map((violation, index) => <li key={index}>{violation}</li>)}
                         </ul>
                     </div>
-                    <GenerateButton compact theme="secondary" label="Relancer"/>
+                    <div className="flex items-center gap-2 self-start">
+                        <GenerateButton compact theme="secondary" label="Relancer"/>
+                        <HideButton onClick={() => hide("violations")}/>
+                    </div>
                 </div>
             }
             {sacrifices.length > 0 &&
@@ -221,9 +285,9 @@ export default function WeeklyPlanning() {
 
     if (!planning) {
         return (
-            <div className="flex flex-col gap-6 pt-1 lg:pt-4">
+            <div className="flex flex-col gap-6 pt-1 xl:pt-4">
                 {title}
-                <div className="flex flex-col items-start gap-3 rounded-[28px] border border-line p-6 lg:p-8">
+                <div className="flex flex-col items-start gap-3 rounded-[28px] border border-line p-6 xl:p-8">
                     <div className="ital text-[26px] leading-[30px]">Ta semaine est encore toute blanche.</div>
                     <p className="max-w-prose text-sm text-muted">
                         Dis à scheduler <Link href="/activity" className="font-semibold text-ink underline underline-offset-[3px]">ce qui compte pour toi</Link>,
@@ -237,10 +301,10 @@ export default function WeeklyPlanning() {
     return (
         <>
             {/* Bureau */}
-            <div className="hidden flex-col gap-7 pt-1 lg:flex">
-                <div className="flex items-stretch gap-6">
+            <div className="hidden flex-col gap-4 xl:flex">
+                <div className="flex items-stretch gap-5">
                     {hero}
-                    <div className="flex min-w-0 grow flex-col justify-center gap-3">
+                    <div className="flex min-w-0 grow flex-col justify-center gap-2">
                         <div className="flex items-baseline gap-3.5">
                             {title}
                             <div className="ml-auto">{legend}</div>
@@ -249,9 +313,13 @@ export default function WeeklyPlanning() {
                     </div>
                 </div>
                 {staleBanner}
-                {noteBlock}
-                {rulesBlock}
-                <div className="grid grid-cols-7 items-start gap-3">
+                {(noteBlock || rulesBlock) &&
+                    <div className="grid items-start gap-4 xl:grid-cols-2">
+                        {noteBlock}
+                        {rulesBlock}
+                    </div>
+                }
+                <div className={`grid items-start gap-2 ${emptyWeekend ? "grid-cols-[repeat(5,minmax(0,1fr))_repeat(2,minmax(0,.5fr))]" : "grid-cols-7"}`}>
                     {days.map((d) =>
                         <DayTimeline key={d.day} day={d.day} label={d.label} date={d.date} isToday={d.isToday}
                                      slots={d.slots} seed={planning._id} priorityOf={priorityOf} onToggle={toggle}/>
@@ -260,7 +328,7 @@ export default function WeeklyPlanning() {
             </div>
 
             {/* Mobile et tablette */}
-            <div className="flex flex-col gap-[18px] lg:hidden">
+            <div className="flex flex-col gap-[18px] xl:hidden">
                 {title}
                 {hero}
                 {staleBanner}

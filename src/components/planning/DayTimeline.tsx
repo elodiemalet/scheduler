@@ -26,9 +26,9 @@ export function LunchBreak({large, onDark}: { large?: boolean, onDark?: boolean 
     return (
         <div
             aria-label={`Pause déjeuner, ${time}`}
-            className={`flex flex-col gap-px border border-dashed ${onDark ? "border-line text-line" : "border-muted text-muted"} ${large ? "min-h-16 justify-center rounded-[20px] px-4 py-3" : "rounded-2xl px-2.5 pt-2.5 pb-[11px]"}`}
+            className={`flex flex-col gap-px border border-dashed ${onDark ? "border-line text-line" : "border-muted text-muted"} ${large ? "min-h-16 justify-center rounded-[20px] px-4 py-3" : "rounded-2xl px-2.5 py-1.5"}`}
         >
-            <span className={`ital ${large ? "text-[17px] leading-[21px]" : "text-sm leading-[18px]"}`}>Pause déjeuner</span>
+            <span className={`ital ${large ? "text-[17px] leading-[21px]" : "text-[13px] leading-4"}`}>Pause déjeuner</span>
             <span className={large ? "text-[13px] leading-[17px]" : "text-xs leading-4"}>{time}</span>
         </div>
     );
@@ -42,11 +42,18 @@ function FreeTime({start, end, idea, large, onDark}: {
     return (
         <div
             aria-label={`Temps libre, ${time} : ${idea}`}
-            className={`flex flex-col gap-0.5 border-l-2 ${onDark ? "border-line text-line" : "border-butter text-muted"} ${large ? "px-4 py-2" : "px-2.5 py-1.5"}`}
+            className={`flex flex-col gap-0.5 border-l-2 ${onDark ? "border-line text-line" : "border-butter text-muted"} ${large ? "px-4 py-2" : "px-2.5 py-1"}`}
         >
-            <span className={`eyebrow ${onDark ? "text-line" : "text-muted"}`}>Temps libre</span>
-            <span className={large ? "text-[13px] leading-[17px]" : "text-xs leading-4"}>{time}</span>
-            <span className={`ital mt-0.5 ${onDark ? "" : "text-ink"} ${large ? "text-[17px] leading-[21px]" : "text-sm leading-[18px]"}`}>{idea}</span>
+            {large ?
+                <>
+                    <span className={`eyebrow ${onDark ? "text-line" : "text-muted"}`}>Temps libre</span>
+                    <span className="text-[13px] leading-[17px]">{time}</span>
+                </>
+                :
+                // Sur bureau, une ligne de moins : l'étiquette et l'horaire côte à côte.
+                <span className="text-xs leading-4"><span className="eyebrow">Libre</span> · {time}</span>
+            }
+            <span className={`ital ${onDark ? "" : "text-ink"} ${large ? "mt-0.5 text-[17px] leading-[21px]" : "line-clamp-2 text-[13px] leading-4"}`}>{idea}</span>
         </div>
     );
 }
@@ -79,6 +86,24 @@ export function DayItems({slots, day, seed, priorityOf, onToggle, large, onDark}
 }
 
 /**
+ * Hauteur minimale d'un créneau sur bureau, par paliers de durée : la forme de
+ * la journée se lit d'un coup d'œil, sans qu'une séance de 15 min devienne
+ * illisible. Classes écrites en entier pour que Tailwind les détecte.
+ */
+function heightFor(slot: ScheduleInterface): string {
+    let length: number;
+    try {
+        length = parseTimeToMinutes(slot.endTime) - parseTimeToMinutes(slot.startTime);
+    } catch {
+        return "";
+    }
+    if (length > 150) return "min-h-24";
+    if (length > 90) return "min-h-[4.5rem]";
+    if (length > 45) return "min-h-14";
+    return "";
+}
+
+/**
  * Un créneau. Fond = couleur soutenue de la priorité, toujours ; fait = une
  * coche, rien d'autre ; contour = couleur vive. Un clic bascule fait / à faire.
  */
@@ -102,14 +127,17 @@ export function SlotButton({slot, day, priority, onToggle, large}: {
             aria-label={`${slot.activity}${part ? `, partie ${part}` : ""}, priorité ${style.label.toLowerCase()}, ${day} ${time}, ${done ? "fait" : "à faire"}`}
             title={slot.description || undefined}
             onClick={() => onToggle(slot)}
-            className={`flex w-full border text-left text-ink transition-[transform,box-shadow] duration-100 hover:-translate-y-px hover:shadow-[0_0_0_3px_var(--color-line)] ${style.softBg} ${style.dotBorder} ${large ? "min-h-16 items-center gap-3.5 rounded-[20px] px-4 py-3" : "items-start gap-[9px] rounded-2xl px-2.5 pt-2.5 pb-[11px]"}`}
+            className={`group flex w-full border text-left text-ink transition-[transform,box-shadow,opacity] duration-100 hover:-translate-y-px hover:shadow-[0_0_0_3px_var(--color-line)] ${style.softBg} ${style.dotBorder} ${done ? "opacity-60" : ""} ${large ? "min-h-16 items-center gap-3.5 rounded-[20px] px-4 py-3" : `items-start gap-2 rounded-2xl px-2.5 py-2 ${heightFor(slot)}`}`}
         >
             <span
-                className={`flex shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink ${large ? "size-[26px]" : "mt-px size-[18px]"} ${done ? "bg-ink text-butter" : "bg-transparent"}`}>
-                {done && <CheckIcon size={large ? 13 : 10}/>}
+                className={`flex shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink ${large ? "size-[26px]" : "mt-px size-4"} ${done ? "bg-ink text-butter" : "bg-transparent"}`}>
+                {/* Au survol, une coche en filigrane : on voit qu'un clic la pose. */}
+                <span className={done ? "" : "opacity-0 transition-opacity group-hover:opacity-40"}>
+                    <CheckIcon size={large ? 13 : 10}/>
+                </span>
             </span>
             <span className="flex min-w-0 flex-col gap-px">
-                <span className={`font-bold ${large ? "text-[17px] leading-[21px]" : "text-sm leading-[18px]"}`}>
+                <span className={`font-bold break-words hyphens-auto ${done ? "line-through" : ""} ${large ? "text-[17px] leading-[21px]" : "text-sm leading-[18px]"}`}>
                     {slot.activity}{part && <span className="font-normal"> · {part}</span>}
                 </span>
                 <span className={large ? "text-[13px] leading-[17px]" : "text-xs leading-4"}>{time}</span>
@@ -132,19 +160,19 @@ export default function DayTimeline({day, label, date, isToday, slots, seed, pri
     return (
         <section
             aria-label={`${day} ${date}`}
-            className={`flex min-w-0 flex-col gap-2.5 rounded-3xl border px-3 pt-4 pb-3 ${isToday ? "border-ink bg-ink text-butter" : "border-line bg-cream text-ink"}`}
+            className={`flex min-w-0 flex-col gap-2 rounded-[20px] border px-2.5 pt-3 pb-2.5 ${isToday ? "border-ink bg-ink text-butter" : "border-line bg-cream text-ink"}`}
         >
-            <div className="flex items-baseline justify-between px-1 pb-1">
-                <div className="flex flex-col">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2 px-1">
+                <div className="flex items-baseline gap-1.5">
                     <div className={`eyebrow ${isToday ? "text-butter" : "text-ink"}`}>{label}</div>
-                    <div className="serif text-4xl leading-[38px]">{date}</div>
+                    <div className="serif text-[30px] leading-8">{date}</div>
                 </div>
-                {isToday && <div className="ital text-[17px]">aujourd’hui</div>}
+                {isToday && <div className="ital text-base">aujourd’hui</div>}
             </div>
             <DayItems slots={slots} day={day} seed={seed} priorityOf={priorityOf} onToggle={onToggle}
                       onDark={isToday}/>
             {slots.length === 0 &&
-                <div className={`ital p-1 text-lg ${isToday ? "text-line" : "text-muted"}`}>Journée libre.</div>
+                <div className={`ital px-1 text-[15px] ${isToday ? "text-line" : "text-muted"}`}>Journée libre.</div>
             }
         </section>
     );
