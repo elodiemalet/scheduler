@@ -1,8 +1,13 @@
 import {isWeekday, Weekday, weekdayFromDate} from './days';
 
-/** Un quart d'heure. L'unité de timeToSpend est l'heure dans tout le domaine. */
-export const EXTERNAL_TASK_DEFAULT_HOURS = 0.25;
+/** Un quart d'heure. Toutes les durées du domaine sont en minutes. */
+export const EXTERNAL_TASK_DEFAULT_MINUTES = 15;
 export const EXTERNAL_TASK_DEFAULT_PRIORITY = 2;
+
+/** Une activité enregistrée sans priorité est neutre, pas prioritaire. */
+export const DEFAULT_ACTIVITY_PRIORITY = 2;
+/** Durée d'une séance quand l'activité n'en déclare pas. */
+export const DEFAULT_SESSION_MINUTES = 60;
 
 /**
  * Longueur maximale d'un champ de tâche externe partant dans le prompt.
@@ -26,13 +31,16 @@ export interface PlannableActivity {
     priority: number;
     startTime: string;
     endTime: string;
-    timeToSpendHours: number;
+    /** Durée d'une séance, en minutes. */
+    sessionMinutes: number;
+    /** Nombre de séances voulues ; null = une par jour possible. */
+    timesPerWeek: number | null;
     days: Weekday[];
     source?: string;
     externalId?: string;
 }
 
-/** Activité telle que persistée. Le champ Mongoose reste `timeToSpend`. */
+/** Activité telle que persistée. `timeToSpend` est la durée d'une séance, en minutes. */
 export interface ActivityInput {
     name: string;
     description?: string;
@@ -40,6 +48,7 @@ export interface ActivityInput {
     startTime?: string;
     endTime?: string;
     timeToSpend?: number;
+    timesPerWeek?: number | null;
     days?: string[];
 }
 
@@ -61,10 +70,11 @@ export function activityToPlannable(activity: ActivityInput): PlannableActivity 
     return {
         name: activity.name,
         description: activity.description ?? '',
-        priority: activity.priority ?? 1,
+        priority: activity.priority ?? DEFAULT_ACTIVITY_PRIORITY,
         startTime: activity.startTime ?? '',
         endTime: activity.endTime ?? '',
-        timeToSpendHours: activity.timeToSpend ?? 1,
+        sessionMinutes: activity.timeToSpend ?? DEFAULT_SESSION_MINUTES,
+        timesPerWeek: activity.timesPerWeek ?? null,
         days: keepKnownDays(activity.days),
     };
 }
@@ -81,7 +91,8 @@ export function externalTaskToPlannable(
         priority: task.priority ?? EXTERNAL_TASK_DEFAULT_PRIORITY,
         startTime: '',
         endTime: '',
-        timeToSpendHours: EXTERNAL_TASK_DEFAULT_HOURS,
+        sessionMinutes: EXTERNAL_TASK_DEFAULT_MINUTES,
+        timesPerWeek: null,
         days: [weekdayFromDate(dueDate)],
         source: task.source,
         externalId: task.externalId,

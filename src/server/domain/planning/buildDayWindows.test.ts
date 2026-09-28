@@ -9,7 +9,8 @@ function activity(overrides: Partial<PlannableActivity> = {}): PlannableActivity
         priority: 2,
         startTime: '',
         endTime: '',
-        timeToSpendHours: 1,
+        sessionMinutes: 60,
+        timesPerWeek: null,
         days: ['lundi'],
         ...overrides,
     };
@@ -30,7 +31,7 @@ describe('buildDayWindows', () => {
         // La fenêtre ne dépend que des horaires fixes. Ce qui ne rentre pas est
         // arbitré par le modèle selon les priorités, pas en dilatant la journée.
         const windows = buildDayWindows([
-            activity({priority: 1, timeToSpendHours: 40}),
+            activity({priority: 1, sessionMinutes: 2400}),
         ]);
         expect(windows[0].heure_fin).toBe('18:00');
     });

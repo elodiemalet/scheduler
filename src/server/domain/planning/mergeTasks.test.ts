@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {
     activityToPlannable,
-    EXTERNAL_TASK_DEFAULT_HOURS,
+    EXTERNAL_TASK_DEFAULT_MINUTES,
     EXTERNAL_TASK_DEFAULT_PRIORITY,
     externalTaskToPlannable,
     MAX_PROMPT_FIELD_LENGTH,
@@ -12,14 +12,15 @@ import {
 const MONDAY = new Date(2026, 7, 31);
 
 describe('activityToPlannable', () => {
-    it('reporte les champs et renomme timeToSpend en heures', () => {
+    it('reporte les champs, la durée d\'une séance en minutes et la fréquence', () => {
         expect(activityToPlannable({
             name: 'Sport',
             description: 'Cardio',
             priority: 1,
             startTime: '09:00',
             endTime: '10:00',
-            timeToSpend: 2,
+            timeToSpend: 90,
+            timesPerWeek: 2,
             days: ['lundi', 'jeudi'],
         })).toEqual({
             name: 'Sport',
@@ -27,7 +28,8 @@ describe('activityToPlannable', () => {
             priority: 1,
             startTime: '09:00',
             endTime: '10:00',
-            timeToSpendHours: 2,
+            sessionMinutes: 90,
+            timesPerWeek: 2,
             days: ['lundi', 'jeudi'],
         });
     });
@@ -36,17 +38,22 @@ describe('activityToPlannable', () => {
         expect(activityToPlannable({name: 'Lecture'})).toEqual({
             name: 'Lecture',
             description: '',
-            priority: 1,
+            priority: 2,
             startTime: '',
             endTime: '',
-            timeToSpendHours: 1,
+            sessionMinutes: 60,
+            timesPerWeek: null,
             days: [],
         });
     });
 
-    it('écarte les jours inconnus', () => {
-        expect(activityToPlannable({name: 'X', days: ['lundi', 'funday']}).days)
-            .toEqual(['lundi']);
+    it('ne rend pas prioritaire une activité enregistrée sans priorité', () => {
+        // Régression : le défaut était 1, la priorité la plus haute.
+        expect(activityToPlannable({name: 'X'}).priority).toBe(2);
+    });
+
+    it('traite un timesPerWeek null comme absent', () => {
+        expect(activityToPlannable({name: 'X', timesPerWeek: null}).timesPerWeek).toBeNull();
     });
 });
 
@@ -72,11 +79,9 @@ describe('externalTaskToPlannable', () => {
         expect(result.days).toEqual(['samedi']);
     });
 
-    it('vaut un quart d\'heure, exprimé en heures et non en minutes', () => {
-        // Régression : la valeur était 15, interprétée comme 15 heures
-        // par buildDayWindows et par le prompt.
-        expect(EXTERNAL_TASK_DEFAULT_HOURS).toBe(0.25);
-        expect(externalTaskToPlannable({title: 'T'}, MONDAY).timeToSpendHours).toBe(0.25);
+    it('vaut un quart d\'heure, exprimé en minutes comme tout le domaine', () => {
+        expect(EXTERNAL_TASK_DEFAULT_MINUTES).toBe(15);
+        expect(externalTaskToPlannable({title: 'T'}, MONDAY).sessionMinutes).toBe(15);
     });
 
     it('applique la priorité par défaut', () => {
