@@ -9,7 +9,10 @@ la semaine.
    autorisés et, si besoin, un créneau fixe (heure de début et heure de fin).
 2. **Générer le planning** (page d'accueil, bouton *Générer*) : l'application calcule une plage horaire pour
    chaque jour, envoie les activités et ces plages au modèle, valide sa réponse puis enregistre le planning.
-3. **Suivre sa semaine** : un clic sur un créneau le marque comme fait, un second le remet à faire.
+3. **Suivre sa semaine** : un clic sur un créneau le marque comme fait, un second le remet à faire. La
+   colonne *Déjà passé (min)* de la page *Activités* additionne les créneaux faits du planning le plus
+   récent. Elle n'est pas enregistrée mais recalculée à chaque lecture, en rapprochant créneaux et activités
+   par leur nom. Elle repart donc de 0 à chaque nouvelle génération.
 
 Les règles imposées au modèle :
 
