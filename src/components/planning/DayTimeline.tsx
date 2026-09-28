@@ -5,7 +5,7 @@ import {CheckIcon} from "@/components/uiComponents/icons/icons";
 import {priorityStyle} from "@/components/uiComponents/priority";
 import {formatClock} from "@/components/uiComponents/format";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
-import {LUNCH_END, LUNCH_START} from "@/server/domain/planning/lunchBreak";
+import {LunchBreak} from "@/server/domain/planning/lunchBreak";
 import {timelineOf} from "@/components/planning/timeline";
 
 /** « 7h – 8h » ; un horaire illisible est affiché tel quel. */
@@ -21,8 +21,8 @@ export function formatSlotTime(slot: ScheduleInterface): string {
  * La pause de midi, en faux créneau : pointillés, pas de fond ni de case à
  * cocher — rien à faire, juste un repère. Le modèle n'y place rien.
  */
-export function LunchBreak({large, onDark}: { large?: boolean, onDark?: boolean }) {
-    const time = `${formatClock(parseTimeToMinutes(LUNCH_START))} – ${formatClock(parseTimeToMinutes(LUNCH_END))}`;
+export function LunchMarker({lunch, large, onDark}: { lunch: LunchBreak, large?: boolean, onDark?: boolean }) {
+    const time = `${formatClock(parseTimeToMinutes(lunch.start))} – ${formatClock(parseTimeToMinutes(lunch.end))}`;
     return (
         <div
             aria-label={`Pause déjeuner, ${time}`}
@@ -62,23 +62,25 @@ function FreeTime({start, end, idea, large, onDark}: {
  * Une journée dans l'ordre des heures : créneaux, pause de midi, et temps
  * libre dans les trous. Rien du tout pour une journée sans créneau.
  */
-export function DayItems({slots, day, seed, priorityOf, onToggle, large, onDark}: {
+export function DayItems({slots, day, seed, lunch, priorityOf, onToggle, large, onDark}: {
     slots: ScheduleInterface[],
     day: string,
     /** Le planning : le tirage des idées en dépend, pour varier d'une semaine à l'autre. */
     seed: string,
+    /** La pause du planning affiché, pas le réglage actuel. */
+    lunch: LunchBreak | null,
     priorityOf: (activity: string) => number,
     onToggle: (slot: ScheduleInterface) => void,
     large?: boolean,
     onDark?: boolean,
 }) {
-    return timelineOf(slots, day, seed).map((item) => {
+    return timelineOf(slots, day, seed, lunch).map((item) => {
         if (item.kind === "slot") {
             return <SlotButton key={item.slot._id} slot={item.slot} day={day} priority={priorityOf(item.slot.activity)}
                                onToggle={onToggle} large={large}/>;
         }
         if (item.kind === "lunch") {
-            return <LunchBreak key="lunch" large={large} onDark={onDark}/>;
+            return lunch && <LunchMarker key="lunch" lunch={lunch} large={large} onDark={onDark}/>;
         }
         return <FreeTime key={`free-${item.start}`} start={item.start} end={item.end} idea={item.idea}
                          large={large} onDark={onDark}/>;
@@ -147,13 +149,14 @@ export function SlotButton({slot, day, priority, onToggle, large}: {
 }
 
 /** Colonne d'un jour, sur bureau. Le jour même est prune. */
-export default function DayTimeline({day, label, date, isToday, slots, seed, priorityOf, onToggle}: {
+export default function DayTimeline({day, label, date, isToday, slots, seed, lunch, priorityOf, onToggle}: {
     day: string,
     label: string,
     date: string,
     isToday: boolean,
     slots: ScheduleInterface[],
     seed: string,
+    lunch: LunchBreak | null,
     priorityOf: (activity: string) => number,
     onToggle: (slot: ScheduleInterface) => void,
 }) {
@@ -169,7 +172,7 @@ export default function DayTimeline({day, label, date, isToday, slots, seed, pri
                 </div>
                 {isToday && <div className="ital text-base">aujourd’hui</div>}
             </div>
-            <DayItems slots={slots} day={day} seed={seed} priorityOf={priorityOf} onToggle={onToggle}
+            <DayItems slots={slots} day={day} seed={seed} lunch={lunch} priorityOf={priorityOf} onToggle={onToggle}
                       onDark={isToday}/>
             {slots.length === 0 &&
                 <div className={`ital px-1 text-[15px] ${isToday ? "text-line" : "text-muted"}`}>Journée libre.</div>

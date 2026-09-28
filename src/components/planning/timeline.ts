@@ -1,5 +1,5 @@
 import {formatMinutesToTime, parseTimeToMinutes} from "@/server/domain/planning/time";
-import {LUNCH_END, LUNCH_START} from "@/server/domain/planning/lunchBreak";
+import {LunchBreak} from "@/server/domain/planning/lunchBreak";
 
 /** En dessous, c'est une transition entre deux séances, pas du temps libre. */
 export const MIN_FREE_MINUTES = 30;
@@ -68,12 +68,14 @@ function hash(text: string): number {
  * moins 30 min entre deux créneaux, avec une idée pour chacun. Le tirage dépend
  * de `seed` (le planning) et du jour : stable d'un rendu à l'autre, jamais deux
  * fois la même idée dans une journée. Un créneau aux horaires illisibles est
- * gardé en fin de journée, sans trou calculé autour.
+ * gardé en fin de journée, sans trou calculé autour. `lunch` : la pause du
+ * planning affiché, `null` s'il n'en a pas.
  */
 export function timelineOf<T extends { startTime: string, endTime: string }>(
     slots: readonly T[],
     day: string,
     seed: string,
+    lunch: LunchBreak | null,
 ): TimelineItem<T>[] {
     if (slots.length === 0) return [];
 
@@ -82,21 +84,20 @@ export function timelineOf<T extends { startTime: string, endTime: string }>(
         .sort((a, b) => minutes(a.startTime)! - minutes(b.startTime)!);
     const unreadable = slots.filter((slot) => !readable.includes(slot));
 
-    const lunchStart = parseTimeToMinutes(LUNCH_START);
-    const lunchEnd = parseTimeToMinutes(LUNCH_END);
+    const pause = lunch && {start: parseTimeToMinutes(lunch.start), end: parseTimeToMinutes(lunch.end)};
     const timed: Array<{ at: number, item: TimelineItem<T> }> = [
         ...readable.map((slot) => ({at: minutes(slot.startTime)!, item: {kind: "slot", slot} as TimelineItem<T>})),
-        {at: lunchStart, item: {kind: "lunch"}},
+        ...(pause ? [{at: pause.start, item: {kind: "lunch"} as TimelineItem<T>}] : []),
     ];
 
-    // Les trous entre deux créneaux, amputés de la pause de midi.
+    // Les trous entre deux créneaux, amputés de la pause de midi s'il y en a une.
     const gaps: Array<[number, number]> = [];
     let latestEnd = readable.length ? minutes(readable[0].endTime)! : 0;
     for (const slot of readable.slice(1)) {
         const start = minutes(slot.startTime)!;
-        const pieces: Array<[number, number]> = start <= lunchStart || latestEnd >= lunchEnd
+        const pieces: Array<[number, number]> = !pause || start <= pause.start || latestEnd >= pause.end
             ? [[latestEnd, start]]
-            : [[latestEnd, Math.min(start, lunchStart)], [Math.max(latestEnd, lunchEnd), start]];
+            : [[latestEnd, Math.min(start, pause.start)], [Math.max(latestEnd, pause.end), start]];
         gaps.push(...pieces.filter(([from, to]) => to - from >= MIN_FREE_MINUTES));
         latestEnd = Math.max(latestEnd, minutes(slot.endTime)!);
     }
