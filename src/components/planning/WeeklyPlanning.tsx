@@ -314,7 +314,8 @@ export default function WeeklyPlanning() {
                 </div>
                 {staleBanner}
                 {(noteBlock || rulesBlock) &&
-                    <div className="grid items-start gap-4 xl:grid-cols-2">
+                    // Deux colonnes seulement si les deux blocs sont là : seul, un bloc prend toute la largeur.
+                    <div className={`grid items-start gap-4 ${noteBlock && rulesBlock ? "xl:grid-cols-2" : ""}`}>
                         {noteBlock}
                         {rulesBlock}
                     </div>
