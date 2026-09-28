@@ -50,6 +50,7 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
   - "minSessionMinutes" : durée sous laquelle une séance ne descend jamais
   - "days" : les seuls jours où l'activité peut avoir lieu
   - "startTime" et "endTime" : quand les deux sont renseignés, c'est un bloc fixe
+  - "ref" : présent seulement sur une tâche ponctuelle, un identifiant court
 
 ## Règles
 1. Place exactement "sessions" séances de chaque activité, ni plus ni moins, chacune un jour différent pris dans "days" : jamais deux séances de la même activité le même jour (une séance coupée par la pause compte pour une seule, voir règle 6).
@@ -86,6 +87,7 @@ Ne supprime et ne raccourcis jamais une séance de priorité 1.
   "note": "Sport du lundi au jeudi pour garder le vendredi matin libre ; l'apprentissage le matin, quand on est le plus frais."
 }
 - "activity" reprend exactement le "name" de l'activité.
+- Quand l'activité a un "ref", chaque créneau qui la concerne porte "ref" avec exactement la même valeur ; sinon, pas de "ref".
 - "sacrifices" liste chaque séance supprimée ou raccourcie ; tableau vide si rien n'a été sacrifié.
 - "note" explique en deux ou trois phrases, en tutoyant, les choix principaux de la semaine : pourquoi ces jours, ces horaires, ce qui a dû céder.
 `;

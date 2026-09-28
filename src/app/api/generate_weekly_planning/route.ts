@@ -1,8 +1,11 @@
+import type {Types} from 'mongoose';
 import Activity from '@/models/Activity';
+import Task from '@/models/Task';
 import dbConnect from '@/server/infrastructure/db/connection';
 import Planning from '@/models/Planning';
 import {generateWeeklyPlanning, LlmRequestError} from '@/services/LlmService';
 import {ActivityInput, activityToPlannable} from '@/server/domain/planning/mergeTasks';
+import {TaskInput, taskToPlannable} from '@/server/domain/planning/tasks';
 import {buildDayWindows} from '@/server/domain/planning/buildDayWindows';
 import {
     InvalidModelResponseError,
@@ -60,8 +63,20 @@ export async function POST() {
             );
         }
 
-        const activities = await Activity.find({}).lean<ActivityInput[]>();
-        const plannable = activities.map(activityToPlannable);
+        const [activities, tasks] = await Promise.all([
+            Activity.find({}).lean<ActivityInput[]>(),
+            Task.find({done: false}).lean<Array<TaskInput & {_id: Types.ObjectId}>>(),
+        ]);
+
+        // Le modèle ne voit que ces références courtes ; on retrouve la tâche
+        // de chaque créneau par elles, jamais par un titre qu'il aurait reformulé.
+        const now = new Date();
+        const refs = tasks.map((_, index) => `t${index + 1}`);
+        const taskIdByRef = new Map(tasks.map((task, index) => [refs[index], task._id]));
+        const plannable = [
+            ...activities.map(activityToPlannable),
+            ...tasks.map((task, index) => taskToPlannable(task, now, refs[index])),
+        ];
         const dayWindows = buildDayWindows(plannable);
         const requests = toSessionRequests(plannable, dayWindows);
 
@@ -122,7 +137,7 @@ export async function POST() {
             return fail(502, 'Le modèle a renvoyé un planning invalide');
         }
 
-        const weekStartDate = new Date();
+        const weekStartDate = new Date(now);
         weekStartDate.setDate(weekStartDate.getDate() - weekStartDate.getDay() + 1);
         const weekEndDate = new Date(weekStartDate);
         weekEndDate.setDate(weekEndDate.getDate() + 6);
@@ -133,7 +148,11 @@ export async function POST() {
         // violations : c'est à l'utilisateur de décider s'il relance.
         const violations = checkSchedule(slots, requests, dayWindows);
         // Les deux moitiés d'une séance coupée par la pause portent 1/2 et 2/2.
-        const schedule = numberParts(slots);
+        const schedule = numberParts(slots).map((slot) => {
+            // Une référence inconnue est déjà signalée par checkSchedule : le créneau reste, sans lien.
+            const taskId = slot.ref ? taskIdByRef.get(slot.ref) : undefined;
+            return taskId ? {...slot, taskId} : slot;
+        });
         if (violations.length > 0) {
             console.warn(`Génération : ${violations.length} règle(s) non respectée(s)`);
         }
