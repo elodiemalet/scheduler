@@ -29,6 +29,8 @@ export interface SessionRequest {
     endTime: string;
     source?: string;
     externalId?: string;
+    /** Voir PlannableActivity.ref. */
+    ref?: string;
 }
 
 export function isFixed(activity: {startTime: string; endTime: string}): boolean {
@@ -65,6 +67,7 @@ function toSessionRequest(activity: PlannableActivity, openDays: readonly Weekda
         endTime: fixed ? activity.endTime : '',
         ...(activity.source ? {source: activity.source} : {}),
         ...(activity.externalId ? {externalId: activity.externalId} : {}),
+        ...(activity.ref ? {ref: activity.ref} : {}),
     };
 }
 

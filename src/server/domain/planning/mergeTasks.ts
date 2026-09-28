@@ -38,6 +38,8 @@ export interface PlannableActivity {
     days: Weekday[];
     source?: string;
     externalId?: string;
+    /** Identifiant court d'une tâche ponctuelle, recopié par le modèle dans ses créneaux. */
+    ref?: string;
 }
 
 /** Activité telle que persistée. `timeToSpend` est la durée d'une séance, en minutes. */

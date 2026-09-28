@@ -117,3 +117,13 @@ describe('isFixed', () => {
         expect(isFixed({startTime: '10:00', endTime: '09:00'})).toBe(false);
     });
 });
+
+describe('toSessionRequests, référence', () => {
+    it('recopie la référence d\'une tâche', () => {
+        expect(single({ref: 't1'}).ref).toBe('t1');
+    });
+
+    it('n\'ajoute pas de référence à une activité', () => {
+        expect(single()).not.toHaveProperty('ref');
+    });
+});

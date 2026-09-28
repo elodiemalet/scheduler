@@ -22,3 +22,8 @@ export function sortWeekdays(days: readonly string[]): Weekday[] {
         .filter(isWeekday)
         .sort((a, b) => WEEKDAYS.indexOf(a) - WEEKDAYS.indexOf(b));
 }
+
+/** Du jour de `date` à dimanche inclus, dans l'ordre de la semaine. */
+export function remainingWeekdays(date: Date): Weekday[] {
+    return WEEKDAYS.slice(WEEKDAYS.indexOf(weekdayFromDate(date)));
+}
