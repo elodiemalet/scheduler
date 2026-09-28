@@ -30,8 +30,12 @@ function sleep(ms: number): Promise<void> {
  */
 const TEMPERATURE = 0.3;
 
-/** 14 créneaux tiennent dans ~1200 tokens ; on garde de la marge pour une semaine chargée. */
-const MAX_TOKENS = 4096;
+/**
+ * La sortie porte désormais "sacrifices" en plus de "schedule", avec une séance
+ * par jour coché plutôt qu'un seul créneau global : ~80 tokens par créneau,
+ * jusqu'à une cinquantaine de créneaux (10 activités × 5 jours) plus les sacrifices.
+ */
+const MAX_TOKENS = 8192;
 
 const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds uniquement avec un objet JSON brut, sans texte autour.
 
