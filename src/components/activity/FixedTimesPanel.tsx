@@ -32,7 +32,7 @@ function Bound({label, value, onEarlier, onLater, onType}: {
 
 /**
  * « Horaires fixes » : les activités qui ont un début et une fin. Ce sont les
- * blocs que scheduler ne déplace pas ; on règle ici début et fin séparément.
+ * blocs que Schedula ne déplace pas ; on règle ici début et fin séparément.
  */
 export default function FixedTimesPanel({activities, onSave}: {
     activities: ActivityInterface[],

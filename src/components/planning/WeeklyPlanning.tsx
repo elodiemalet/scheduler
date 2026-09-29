@@ -291,7 +291,7 @@ export default function WeeklyPlanning() {
                 <div className="flex flex-col items-start gap-3 rounded-[28px] border border-line p-6 xl:p-8">
                     <div className="ital text-[26px] leading-[30px]">Ta semaine est encore toute blanche.</div>
                     <p className="max-w-prose text-sm text-muted">
-                        Dis à scheduler <Link href="/activity" className="font-semibold text-ink underline underline-offset-[3px]">ce qui compte pour toi</Link>,
+                        Dis à Schedula <Link href="/activity" className="font-semibold text-ink underline underline-offset-[3px]">ce qui compte pour toi</Link>,
                         puis clique sur « Générer ma semaine » : il range tes activités jour par jour.
                     </p>
                 </div>

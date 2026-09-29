@@ -194,7 +194,7 @@ export default function TaskList() {
                     <div className="flex flex-col gap-1.5 py-3.5">
                         <div className="text-[15px] font-bold">Casées entre tes activités</div>
                         <p className="m-0 text-[13px] leading-[18px] text-muted">
-                            À chaque génération, scheduler place tes tâches dans les trous de ta semaine. Une tâche non cochée revient la semaine suivante.
+                            À chaque génération, Schedula place tes tâches dans les trous de ta semaine. Une tâche non cochée revient la semaine suivante.
                         </p>
                     </div>
                     <div className="flex flex-col gap-1.5 border-t border-line py-3.5">

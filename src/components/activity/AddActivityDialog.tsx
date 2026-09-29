@@ -32,9 +32,9 @@ const EMPTY_DRAFT = {
 
 type Draft = typeof EMPTY_DRAFT;
 
-/** La phrase jaune en bas de la fenêtre : ce que scheduler va comprendre. */
+/** La phrase jaune en bas de la fenêtre : ce que Schedula va comprendre. */
 function summaryOf(draft: Draft): string {
-    if (draft.days.length === 0) return "Choisis au moins un jour pour que scheduler puisse la caser.";
+    if (draft.days.length === 0) return "Choisis au moins un jour pour que Schedula puisse la caser.";
     const days = draft.days.length === 7 ? "n’importe quel jour" : formatDays(draft.days).toLowerCase();
     const fixed = draft.fixedStart !== null ? `, à ${formatClock(draft.fixedStart)}` : "";
     return `${formatTimes(draft.timesPerWeek)} par semaine, ${formatDuration(draft.timeToSpend)} à chaque fois, ${days}${fixed}, ${priorityStyle(draft.priority).summary}.`;

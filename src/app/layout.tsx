@@ -36,7 +36,7 @@ const instrument = localFont({
 });
 
 export const metadata: Metadata = {
-    title: "scheduler",
+    title: "Schedula",
     description: "Ta semaine, rangée selon ce qui compte pour toi",
 };
 
