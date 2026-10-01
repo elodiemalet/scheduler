@@ -13,3 +13,15 @@ export const scheduleStatusSchema = z.object({
 });
 
 export type ScheduleStatusBody = z.infer<typeof scheduleStatusSchema>;
+
+/**
+ * Une ou deux parties : les deux moitiés d'une séance coupée par la pause se
+ * verrouillent ensemble, en un seul appel.
+ */
+export const scheduleLockSchema = z.object({
+    planningId: objectId,
+    ids: z.array(objectId).min(1).max(2),
+    locked: z.boolean(),
+});
+
+export type ScheduleLockBody = z.infer<typeof scheduleLockSchema>;

@@ -1,7 +1,7 @@
 "use client";
 
 import {ScheduleInterface} from "@/models/Schedule";
-import {CheckIcon} from "@/components/uiComponents/icons/icons";
+import {CheckIcon, LockIcon} from "@/components/uiComponents/icons/icons";
 import {priorityStyle} from "@/components/uiComponents/priority";
 import {formatClock} from "@/components/uiComponents/format";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
@@ -62,7 +62,7 @@ function FreeTime({start, end, idea, large, onDark}: {
  * Une journée dans l'ordre des heures : créneaux, pause de midi, et temps
  * libre dans les trous. Rien du tout pour une journée sans créneau.
  */
-export function DayItems({slots, day, seed, lunch, priorityOf, onToggle, large, onDark}: {
+export function DayItems({slots, day, seed, lunch, priorityOf, onToggle, canLock, onLock, disabled, large, onDark}: {
     slots: ScheduleInterface[],
     day: string,
     /** Le planning : le tirage des idées en dépend, pour varier d'une semaine à l'autre. */
@@ -71,13 +71,19 @@ export function DayItems({slots, day, seed, lunch, priorityOf, onToggle, large, 
     lunch: LunchBreak | null,
     priorityOf: (activity: string) => number,
     onToggle: (slot: ScheduleInterface) => void,
+    /** Vrai si le créneau peut être (dé)verrouillé : semaine en cours, en attente, pas encore commencé. */
+    canLock: (slot: ScheduleInterface) => boolean,
+    onLock: (slot: ScheduleInterface) => void,
+    /** Vrai pendant une génération : rien ne se coche ni ne se verrouille. */
+    disabled?: boolean,
     large?: boolean,
     onDark?: boolean,
 }) {
     return timelineOf(slots, day, seed, lunch).map((item) => {
         if (item.kind === "slot") {
-            return <SlotButton key={item.slot._id} slot={item.slot} day={day} priority={priorityOf(item.slot.activity)}
-                               onToggle={onToggle} large={large}/>;
+            return <SlotRow key={item.slot._id} slot={item.slot} day={day} priority={priorityOf(item.slot.activity)}
+                            onToggle={onToggle} canLock={canLock(item.slot)} onLock={onLock} disabled={disabled}
+                            large={large}/>;
         }
         if (item.kind === "lunch") {
             return lunch && <LunchMarker key="lunch" lunch={lunch} large={large} onDark={onDark}/>;
@@ -106,15 +112,64 @@ function heightFor(slot: ScheduleInterface): string {
 }
 
 /**
+ * Un créneau et son cadenas. `SlotButton` est déjà un <button> : le cadenas
+ * est son voisin, posé dans l'angle, jamais son enfant. Sa zone de clic
+ * dépasse l'icône, pour qu'on ne le rate pas, surtout au doigt.
+ */
+function SlotRow({slot, day, priority, onToggle, canLock, onLock, disabled, large}: {
+    slot: ScheduleInterface,
+    day: string,
+    priority: number,
+    onToggle: (slot: ScheduleInterface) => void,
+    /** Faux pour un créneau fait ou commencé : il est déjà gardé, pas de cadenas à poser. */
+    canLock: boolean,
+    onLock: (slot: ScheduleInterface) => void,
+    disabled?: boolean,
+    large?: boolean,
+}) {
+    const locked = slot.locked === true;
+    return (
+        <div className="relative">
+            <SlotButton slot={slot} day={day} priority={priority} onToggle={onToggle} large={large}
+                        locked={locked} reserveCorner={canLock || locked} disabled={disabled}/>
+            {canLock &&
+                <button
+                    type="button"
+                    aria-pressed={locked}
+                    // Libellé fixe : l'état passe par aria-pressed, sans être annoncé deux fois.
+                    aria-label={`Verrouiller ${slot.activity}, ${day} ${formatSlotTime(slot)}`}
+                    title={locked ? "Verrouillé : une regénération le garde. Clique pour déverrouiller." : "Verrouiller : une regénération le gardera"}
+                    onClick={() => onLock(slot)}
+                    disabled={disabled}
+                    className={`absolute flex items-center justify-center rounded-full text-ink transition-opacity hover:bg-ink/10 hover:opacity-100 focus-visible:opacity-100 ${locked ? "cursor-unlock opacity-100" : "cursor-lock opacity-40"} ${large ? "top-2 right-2 size-11" : "top-1 right-1 size-7"}`}
+                >
+                    <LockIcon open={!locked} size={large ? 16 : 13}/>
+                </button>
+            }
+            {/* Verrouillé mais déjà passé : le cadenas reste affiché, sans rien à cliquer. */}
+            {!canLock && locked &&
+                <span aria-hidden="true" className={`absolute text-ink ${large ? "top-5 right-5" : "top-2 right-2"}`}>
+                    <LockIcon size={large ? 16 : 13}/>
+                </span>
+            }
+        </div>
+    );
+}
+
+/**
  * Un créneau. Fond = couleur soutenue de la priorité, toujours ; fait = une
  * coche, rien d'autre ; contour = couleur vive. Un clic bascule fait / à faire.
  */
-export function SlotButton({slot, day, priority, onToggle, large}: {
+export function SlotButton({slot, day, priority, onToggle, large, locked, reserveCorner, disabled}: {
     slot: ScheduleInterface,
     day: string,
     priority: number,
     onToggle: (slot: ScheduleInterface) => void,
     large?: boolean,
+    locked?: boolean,
+    /** Laisse la place du cadenas dans l'angle, pour que le titre ne passe pas dessous. */
+    reserveCorner?: boolean,
+    disabled?: boolean,
 }) {
     const style = priorityStyle(priority);
     const done = slot.status === "done";
@@ -126,10 +181,11 @@ export function SlotButton({slot, day, priority, onToggle, large}: {
         <button
             type="button"
             aria-pressed={done}
-            aria-label={`${slot.activity}${part ? `, partie ${part}` : ""}, priorité ${style.label.toLowerCase()}, ${day} ${time}, ${done ? "fait" : "à faire"}`}
+            aria-label={`${slot.activity}${part ? `, partie ${part}` : ""}, priorité ${style.label.toLowerCase()}, ${day} ${time}, ${done ? "fait" : "à faire"}${locked ? ", verrouillé" : ""}`}
             title={slot.description || undefined}
             onClick={() => onToggle(slot)}
-            className={`group flex w-full border text-left text-ink transition-[transform,box-shadow,opacity] duration-100 hover:-translate-y-px hover:shadow-[0_0_0_3px_var(--color-line)] ${style.softBg} ${style.dotBorder} ${done ? "opacity-60" : ""} ${large ? "min-h-16 items-center gap-3.5 rounded-[20px] px-4 py-3" : `items-start gap-2 rounded-2xl px-2.5 py-2 ${heightFor(slot)}`}`}
+            disabled={disabled}
+            className={`group flex w-full border text-left text-ink transition-[transform,box-shadow,opacity] duration-100 hover:-translate-y-px hover:shadow-[0_0_0_3px_var(--color-line)] disabled:hover:translate-y-0 disabled:hover:shadow-none ${style.softBg} ${style.dotBorder} ${done ? "opacity-60" : ""} ${reserveCorner ? (large ? "pr-12" : "pr-7") : ""} ${large ? "min-h-16 items-center gap-3.5 rounded-[20px] px-4 py-3" : `items-start gap-2 rounded-2xl px-2.5 py-2 ${heightFor(slot)}`}`}
         >
             <span
                 className={`flex shrink-0 items-center justify-center rounded-full border-[1.5px] border-ink ${large ? "size-[26px]" : "mt-px size-4"} ${done ? "bg-ink text-butter" : "bg-transparent"}`}>
@@ -149,7 +205,7 @@ export function SlotButton({slot, day, priority, onToggle, large}: {
 }
 
 /** Colonne d'un jour, sur bureau. Le jour même est prune. */
-export default function DayTimeline({day, label, date, isToday, slots, seed, lunch, priorityOf, onToggle}: {
+export default function DayTimeline({day, label, date, isToday, slots, seed, lunch, priorityOf, onToggle, canLock, onLock, disabled}: {
     day: string,
     label: string,
     date: string,
@@ -159,6 +215,9 @@ export default function DayTimeline({day, label, date, isToday, slots, seed, lun
     lunch: LunchBreak | null,
     priorityOf: (activity: string) => number,
     onToggle: (slot: ScheduleInterface) => void,
+    canLock: (slot: ScheduleInterface) => boolean,
+    onLock: (slot: ScheduleInterface) => void,
+    disabled?: boolean,
 }) {
     return (
         <section
@@ -173,7 +232,7 @@ export default function DayTimeline({day, label, date, isToday, slots, seed, lun
                 {isToday && <div className="ital text-base">aujourd’hui</div>}
             </div>
             <DayItems slots={slots} day={day} seed={seed} lunch={lunch} priorityOf={priorityOf} onToggle={onToggle}
-                      onDark={isToday}/>
+                      canLock={canLock} onLock={onLock} disabled={disabled} onDark={isToday}/>
             {slots.length === 0 &&
                 <div className={`ital px-1 text-[15px] ${isToday ? "text-line" : "text-muted"}`}>Journée libre.</div>
             }

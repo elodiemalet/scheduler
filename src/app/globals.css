@@ -59,6 +59,20 @@
     }
 }
 
+/*
+ * Curseurs du bouton cadenas d'un créneau, 16 px : ils montrent ce que fera le clic —
+ * cadenas fermé pour verrouiller, ouvert pour déverrouiller. Image en data:,
+ * que la CSP autorise (img-src). Contour crème pour rester visible sur les
+ * fonds foncés. Repli sur la main si l'image est refusée.
+ */
+@utility cursor-lock {
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'><path d='M8 11V7a4 4 0 0 1 8 0v4' stroke='%23FBF6EC' stroke-width='6'/><rect x='5' y='11' width='14' height='10' rx='2' stroke='%23FBF6EC' stroke-width='6'/><path d='M8 11V7a4 4 0 0 1 8 0v4' stroke='%23564154' stroke-width='2.5'/><rect x='5' y='11' width='14' height='10' rx='2' fill='%23FBF6EC' stroke='%23564154' stroke-width='2.5'/></svg>") 8 9, pointer;
+}
+
+@utility cursor-unlock {
+    cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke-linecap='round' stroke-linejoin='round'><path d='M8 11V7a4 4 0 0 1 7.6-1.7' stroke='%23FBF6EC' stroke-width='6'/><rect x='5' y='11' width='14' height='10' rx='2' stroke='%23FBF6EC' stroke-width='6'/><path d='M8 11V7a4 4 0 0 1 7.6-1.7' stroke='%23564154' stroke-width='2.5'/><rect x='5' y='11' width='14' height='10' rx='2' fill='%23FBF6EC' stroke='%23564154' stroke-width='2.5'/></svg>") 8 9, pointer;
+}
+
 @utility serif {
     font-family: var(--font-serif);
     font-weight: 400;

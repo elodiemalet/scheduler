@@ -32,6 +32,16 @@ export function CheckIcon(props: IconProps) {
     return <Svg strokeWidth={4} {...props}><path d="M5 12l5 5L20 7"/></Svg>;
 }
 
+/** Cadenas fermé, ou ouvert avec `open`. */
+export function LockIcon({open, ...props}: IconProps & { open?: boolean }) {
+    return (
+        <Svg {...props}>
+            <rect x="5" y="11" width="14" height="10" rx="2"/>
+            <path d={open ? "M8 11V7a4 4 0 0 1 7.6-1.7" : "M8 11V7a4 4 0 0 1 8 0v4"}/>
+        </Svg>
+    );
+}
+
 export function SparkIcon(props: IconProps) {
     return (
         <Svg {...props}>
