@@ -100,7 +100,7 @@ function startMinutes(slot: ScheduleInterface): number {
 }
 
 export default function WeeklyPlanning() {
-    const {planning, loaded, stale, setPlanning, reload} = useWeek();
+    const {planning, loaded, stale, setPlanning, reload, generating} = useWeek();
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
     const [noteOpen, setNoteOpen] = useState(false);
     const [hidden, setHidden] = useState<Partial<Record<Dismissable, string>>>({});
@@ -143,7 +143,7 @@ export default function WeeklyPlanning() {
     const percent = planned ? Math.round(done / planned * 100) : 0;
 
     function toggle(slot: ScheduleInterface) {
-        if (!planning) return;
+        if (!planning || generating) return;
         const status = slot.status === "done" ? "pending" : "done";
         // Optimiste : la coche apparaît tout de suite, et revient si l'API refuse.
         setPlanning((p) => ({

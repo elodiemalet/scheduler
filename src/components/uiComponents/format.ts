@@ -1,4 +1,5 @@
 import {WEEKDAYS} from "@/server/domain/planning/days";
+import {weekStartOf} from "@/server/domain/planning/partial";
 
 /** Initiales et abréviations, dans l'ordre de `WEEKDAYS`. */
 export const DAY_INITIALS = ["L", "M", "M", "J", "V", "S", "D"] as const;
@@ -38,11 +39,9 @@ export function formatDays(days: readonly string[]): string {
 }
 
 /** Lundi (00:00, heure locale) de la semaine qui contient `date`. */
+/** Le lundi de la semaine de `date` : le même découpage que la génération, dimanche compris. */
 export function mondayOf(date: Date): Date {
-    const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const offset = (monday.getDay() + 6) % 7;
-    monday.setDate(monday.getDate() - offset);
-    return monday;
+    return weekStartOf(date);
 }
 
 export function addDays(date: Date, days: number): Date {
