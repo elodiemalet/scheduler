@@ -25,6 +25,17 @@ export interface ApiServiceInterface {
     delete<Req, Res>(endpoint: string, data: Req, headers?: Record<string, string> | undefined): Promise<Res>;
 }
 
+/**
+ * Même message qu'avant, plus le statut — un appelant peut distinguer un 409
+ * d'une panne — et `detail`, le champ `error` que renvoie l'API, s'il y en a un.
+ */
+export class HttpError extends Error {
+    constructor(readonly status: number, message: string, readonly detail?: string) {
+        super(message);
+        this.name = 'HttpError';
+    }
+}
+
 export class ApiService {
 
     async request<Res>(endpoint: string, options: RequestOptions = {}): Promise<Res> {
@@ -56,7 +67,10 @@ export class ApiService {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+                const detail = await response.json()
+                    .then((body: { error?: unknown }) => typeof body?.error === 'string' ? body.error : undefined)
+                    .catch(() => undefined);
+                throw new HttpError(response.status, `HTTP error! status: ${response.status} ${response.statusText}`, detail);
             }
 
             return (await response.json()) as Res;

@@ -53,6 +53,7 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
 ## Entrée
 - "jours" : les jours à planifier, chacun avec "jour", "heure_debut" et "heure_fin". Ne place jamais rien en dehors de ces horaires.
 - "pause" : la pause de midi, de "debut" à "fin", la même chaque jour. Absente : il n'y a pas de pause.
+- "occupe" : des créneaux déjà en place cette semaine, chacun avec "jour", "debut", "fin" et "activite". Tu ne les renvoies pas. Absente : rien n'est déjà en place.
 - "activites" : pour chaque activité :
   - "name", "description"
   - "priority" : 1 = indispensable, 2 = important, 3 = accessoire
@@ -70,7 +71,7 @@ const SYSTEM_PROMPT = `Tu construis un emploi du temps hebdomadaire. Réponds un
 4. Un bloc fixe se place exactement de "startTime" à "endTime", les seuls jours choisis : ni déplacé, ni raccourci.
 5. Si "pause" est présente, ne place rien pendant la pause de midi, entre "debut" et "fin". Seul un bloc fixe qui tombe sur la pause y reste.
 6. Si "pause" est présente, une séance libre qui ne tient pas avant la pause peut être coupée en deux parties le même jour : la première finit juste avant la pause, la seconde reprend juste après. Chaque partie dure au moins 30 min et leur total fait la durée de la séance. Écris chaque partie comme un créneau de "schedule", avec le même "activity". Ne coupe jamais une séance ailleurs qu'autour de la pause, ni un bloc fixe. Sans "pause", ne coupe aucune séance.
-7. Aucun chevauchement. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
+7. Aucun chevauchement, ni entre tes créneaux, ni avec ceux de "occupe" quand elle est présente. Laisse une courte pause entre deux séances qui ne sont pas des blocs fixes.
 8. Étale les séances d'une même activité sur la semaine plutôt que sur des jours consécutifs.
 9. Le temps qui reste libre reste libre : ne rallonge aucune séance.
 
@@ -100,7 +101,7 @@ Ne supprime et ne raccourcis jamais une séance de priorité 1.
 - "activity" reprend exactement le "name" de l'activité.
 - Quand l'activité a un "ref", chaque créneau qui la concerne porte "ref" avec exactement la même valeur ; sinon, pas de "ref".
 - "sacrifices" liste chaque séance supprimée ou raccourcie ; tableau vide si rien n'a été sacrifié.
-- "note" explique en deux ou trois phrases, en tutoyant, les choix principaux de la semaine : pourquoi ces jours, ces horaires, ce qui a dû céder.
+- "note" explique en deux ou trois phrases, en tutoyant, les choix principaux de la semaine : pourquoi ces jours, ces horaires, ce qui a dû céder. Quand "occupe" est présente, elle parle du reste de la semaine.
 `;
 
 /**

@@ -19,6 +19,8 @@ export interface ScheduleInterface {
     parts?: number;
     /** Tâche ponctuelle que ce créneau réalise ; absent pour une activité. */
     taskId?: string;
+    /** Verrouillé : une regénération le recopie tel quel. Absent sur les anciens plannings. */
+    locked?: boolean;
 }
 
 export const ScheduleSchema = new mongoose.Schema({
@@ -32,4 +34,5 @@ export const ScheduleSchema = new mongoose.Schema({
     part: {type: Number, default: 1},
     parts: {type: Number, default: 1},
     taskId: {type: mongoose.Schema.Types.ObjectId, ref: 'Task'},
+    locked: {type: Boolean, default: false},
 });

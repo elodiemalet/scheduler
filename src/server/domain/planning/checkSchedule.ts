@@ -6,6 +6,14 @@ import {
     groupSessions, isSplitAroundLunch, LunchBreak, MIN_PART_MINUTES, overlapsLunch,
 } from './lunchBreak';
 
+/** Un créneau déjà en place, que les nouveaux créneaux ne doivent pas chevaucher. */
+export interface BusySlot {
+    day: string;
+    startTime: string;
+    endTime: string;
+    activity: string;
+}
+
 /** La seule priorité dont une séance manquante est une faute : 2 et 3 se sacrifient. */
 const UNTOUCHABLE_PRIORITY = 1;
 
@@ -162,15 +170,35 @@ function checkRefs(slots: readonly ScheduleSlot[], requests: readonly SessionReq
             : []);
 }
 
+/** Les créneaux en place ne sont pas revérifiés : seuls les nouveaux doivent les éviter. */
+function checkBusy(slots: readonly ScheduleSlot[], busy: readonly BusySlot[]): string[] {
+    return slots.flatMap((slot, index) => {
+        const start = parseTimeToMinutes(slot.startTime);
+        const end = parseTimeToMinutes(slot.endTime);
+        if (end <= start) {
+            return [];
+        }
+        return busy
+            .filter((other) => other.day === slot.day
+                && start < parseTimeToMinutes(other.endTime)
+                && parseTimeToMinutes(other.startTime) < end)
+            .map((other) => `${describeSlot(slot, index)} : chevauche un créneau déjà en place `
+                + `(${other.activity}, ${other.startTime}–${other.endTime})`);
+    });
+}
+
 /**
  * Vérifie ce qui se contrôle mécaniquement dans la réponse du modèle. Ne juge
  * pas l'arbitrage : quelles séances il a sacrifiées reste son choix.
+ * `busy` : les créneaux figés d'une regénération partielle, qu'aucun nouveau
+ * créneau ne doit chevaucher.
  */
 export function checkSchedule(
     slots: readonly ScheduleSlot[],
     requests: readonly SessionRequest[],
     windows: readonly DayWindow[],
     lunch: LunchBreak | null,
+    busy: readonly BusySlot[] = [],
 ): string[] {
     // Un créneau se résout par `ref` s'il en porte une (parmi les requêtes de cette
     // référence), sinon par nom, mais seulement parmi les requêtes sans référence :
@@ -189,6 +217,7 @@ export function checkSchedule(
         ...slots.flatMap((slot, index) =>
             checkSlot(slot, index, resolveRequest(slot), windowByDay.get(slot.day), split.has(slot), lunch)),
         ...checkOverlaps(slots),
+        ...checkBusy(slots, busy),
         ...groups.flatMap((group) => checkSplitSession(group, resolveRequest(group[0]), lunch)),
         ...requests.flatMap((request) => checkCounts(slots, request)),
         ...checkRefs(slots, requests),

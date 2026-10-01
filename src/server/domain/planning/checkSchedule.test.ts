@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {checkSchedule} from '@/server/domain/planning/checkSchedule';
+import {BusySlot, checkSchedule} from '@/server/domain/planning/checkSchedule';
 import {DayWindow} from '@/server/domain/planning/buildDayWindows';
 import {ScheduleSlot} from '@/server/domain/planning/parseSchedule';
 import {SessionRequest} from '@/server/domain/planning/sessions';
@@ -226,5 +226,27 @@ describe('checkSchedule, références de tâche', () => {
             slot({activity: 'Appeler', day: 'mardi', ref: 't2'}),
         ];
         expect(checkSchedule(slots, requests, WINDOWS, DEFAULT_LUNCH_BREAK)).toEqual([]);
+    });
+});
+
+describe('checkSchedule, créneaux déjà en place', () => {
+    const busy: BusySlot[] = [{day: 'lundi', startTime: '09:30', endTime: '11:00', activity: 'Course'}];
+
+    it('signale un créneau qui chevauche un créneau en place', () => {
+        expect(checkSchedule([slot()], [request()], WINDOWS, DEFAULT_LUNCH_BREAK, busy))
+            .toEqual(only(/Créneau 1 \(Sport, lundi 09:00–10:00\) : chevauche un créneau déjà en place \(Course, 09:30–11:00\)/));
+    });
+
+    it('accepte un créneau qui le touche sans le chevaucher', () => {
+        expect(checkSchedule([slot({startTime: '11:00', endTime: '12:00'})], [request()], WINDOWS, DEFAULT_LUNCH_BREAK, busy))
+            .toEqual([]);
+    });
+
+    it('ignore un créneau en place d’un autre jour', () => {
+        expect(checkSchedule([slot({day: 'mardi'})], [request()], WINDOWS, DEFAULT_LUNCH_BREAK, busy)).toEqual([]);
+    });
+
+    it('ne change rien quand aucun créneau n’est en place', () => {
+        expect(checkSchedule([slot()], [request()], WINDOWS, DEFAULT_LUNCH_BREAK)).toEqual([]);
     });
 });

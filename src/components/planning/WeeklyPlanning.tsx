@@ -6,9 +6,10 @@ import {toast} from "react-toastify";
 import {PlanningInterface} from "@/models/Planning";
 import {ScheduleInterface} from "@/models/Schedule";
 import {apiService} from "@/services/ApiService";
-import {WEEKDAYS} from "@/server/domain/planning/days";
+import {WEEKDAYS, weekdayFromDate} from "@/server/domain/planning/days";
 import {parseTimeToMinutes} from "@/server/domain/planning/time";
 import {lunchBreakOf} from "@/server/domain/planning/lunchBreak";
+import {isCurrentWeek, isFrozen, sessionPartsOf} from "@/server/domain/planning/partial";
 import DayTimeline, {DayItems} from "@/components/planning/DayTimeline";
 import GenerateButton from "@/components/planning/GenerateButton";
 import {useWeek} from "@/components/planning/useWeek";
@@ -100,7 +101,7 @@ function startMinutes(slot: ScheduleInterface): number {
 }
 
 export default function WeeklyPlanning() {
-    const {planning, loaded, stale, setPlanning, reload} = useWeek();
+    const {planning, loaded, stale, setPlanning, reload, generating} = useWeek();
     const [selectedDay, setSelectedDay] = useState<number | null>(null);
     const [noteOpen, setNoteOpen] = useState(false);
     const [hidden, setHidden] = useState<Partial<Record<Dismissable, string>>>({});
@@ -143,7 +144,7 @@ export default function WeeklyPlanning() {
     const percent = planned ? Math.round(done / planned * 100) : 0;
 
     function toggle(slot: ScheduleInterface) {
-        if (!planning) return;
+        if (!planning || generating) return;
         const status = slot.status === "done" ? "pending" : "done";
         // Optimiste : la coche apparaît tout de suite, et revient si l'API refuse.
         setPlanning((p) => ({
@@ -153,6 +154,37 @@ export default function WeeklyPlanning() {
         apiService.post("/api/schedule/status", {status, id: slot._id, planningId: planning._id})
             .catch(() => {
                 toast.error("Impossible d’enregistrer ce créneau.");
+                reload();
+            });
+    }
+
+    // Calculé au rendu : suffisant pour une page qu'on recharge à chaque action.
+    const currentWeek = planning !== null && isCurrentWeek(planning.timestamp, today);
+    const weekday = weekdayFromDate(today);
+    const nowMinutes = today.getHours() * 60 + today.getMinutes();
+
+    /**
+     * Seule une séance à venir se verrouille : faite ou commencée, elle est déjà
+     * gardée. Jugé sur la séance entière — une séance coupée dont la matinée est
+     * passée est gardée d'un bloc, son après-midi n'a rien à verrouiller.
+     */
+    function canLock(slot: ScheduleInterface): boolean {
+        return currentWeek && planning !== null && sessionPartsOf(planning.schedule, slot)
+            .every((part) => !isFrozen({...part, locked: false}, weekday, nowMinutes));
+    }
+
+    function lock(slot: ScheduleInterface) {
+        if (!planning || generating) return;
+        // Les deux moitiés d'une séance coupée se verrouillent ensemble.
+        const ids = sessionPartsOf(planning.schedule, slot).map((s) => s._id);
+        const locked = slot.locked !== true;
+        setPlanning((p) => ({
+            ...p,
+            schedule: p.schedule.map((s) => ids.includes(s._id) ? {...s, locked} : s),
+        }));
+        apiService.post("/api/schedule/lock", {planningId: planning._id, ids, locked})
+            .catch(() => {
+                toast.error("Impossible de verrouiller ce créneau.");
                 reload();
             });
     }
@@ -326,7 +358,8 @@ export default function WeeklyPlanning() {
                 <div className={`grid items-start gap-2 ${emptyWeekend ? "grid-cols-[repeat(5,minmax(0,1fr))_repeat(2,minmax(0,.5fr))]" : "grid-cols-7"}`}>
                     {days.map((d) =>
                         <DayTimeline key={d.day} day={d.day} label={d.label} date={d.date} isToday={d.isToday}
-                                     slots={d.slots} seed={planning._id} lunch={lunch} priorityOf={priorityOf} onToggle={toggle}/>
+                                     slots={d.slots} seed={planning._id} lunch={lunch} priorityOf={priorityOf} onToggle={toggle}
+                                     canLock={canLock} onLock={lock} disabled={generating}/>
                     )}
                 </div>
             </div>
@@ -370,7 +403,7 @@ export default function WeeklyPlanning() {
                     </div>
                     <div className="-mt-0.5">{legend}</div>
                     <DayItems slots={selected.slots} day={selected.day} seed={planning._id} lunch={lunch}
-                              priorityOf={priorityOf} onToggle={toggle} large/>
+                              priorityOf={priorityOf} onToggle={toggle} canLock={canLock} onLock={lock} disabled={generating} large/>
                     {selected.slots.length === 0 &&
                         <div className="ital px-0.5 py-2 text-xl text-muted">Journée libre.</div>
                     }

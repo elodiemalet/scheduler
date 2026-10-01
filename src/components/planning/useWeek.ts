@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {toast} from "react-toastify";
 import {PlanningInterface} from "@/models/Planning";
 import {ActivityInterface} from "@/models/Activity";
-import {apiService} from "@/services/ApiService";
+import {apiService, HttpError} from "@/services/ApiService";
 
 /**
  * Il n'y a pas de store : chaque composant garde son état local. Ce signal de
@@ -15,6 +15,20 @@ const SCHEDULER_CHANGED = "scheduler:changed";
 
 export function notifySchedulerChanged() {
     window.dispatchEvent(new Event(SCHEDULER_CHANGED));
+}
+
+/**
+ * Une génération en cours, signalée de la même façon. Tant qu'elle tourne, la
+ * semaine ne se coche ni ne se verrouille : le planning qu'elle écrira
+ * remplacerait ces changements. Gardé aussi au niveau du module, pour qu'un
+ * `useWeek` monté pendant la génération parte du bon état.
+ */
+const SCHEDULER_GENERATING = "scheduler:generating";
+let generationRunning = false;
+
+function setGenerationRunning(running: boolean) {
+    generationRunning = running;
+    window.dispatchEvent(new Event(SCHEDULER_GENERATING));
 }
 
 /**
@@ -45,6 +59,7 @@ interface WeekData {
 export function useWeek() {
     const [data, setData] = useState<WeekData>({planning: null, activities: [], loaded: false});
     const [version, setVersion] = useState(0);
+    const [generating, setGenerating] = useState(generationRunning);
 
     useEffect(() => {
         let alive = true;
@@ -67,8 +82,13 @@ export function useWeek() {
 
     useEffect(() => {
         const reload = () => setVersion((v) => v + 1);
+        const follow = () => setGenerating(generationRunning);
         window.addEventListener(SCHEDULER_CHANGED, reload);
-        return () => window.removeEventListener(SCHEDULER_CHANGED, reload);
+        window.addEventListener(SCHEDULER_GENERATING, follow);
+        return () => {
+            window.removeEventListener(SCHEDULER_CHANGED, reload);
+            window.removeEventListener(SCHEDULER_GENERATING, follow);
+        };
     }, []);
 
     const setPlanning = useCallback((update: (planning: PlanningInterface) => PlanningInterface) => {
@@ -78,6 +98,7 @@ export function useWeek() {
     return {
         ...data,
         stale: isWeekStale(data.planning, data.activities),
+        generating,
         reload: () => setVersion((v) => v + 1),
         setPlanning,
     };
@@ -91,21 +112,28 @@ const GENERATION_TIMEOUT_MS = 150 * 1000;
 
 /** Lance une génération, prévient l'utilisateur, puis signale le changement. */
 export async function generateWeek(): Promise<boolean> {
+    setGenerationRunning(true);
     try {
-        const result = await apiService.post<Record<string, never>, { violations: string[] }>(
+        const result = await apiService.post<Record<string, never>, { violations: string[], partial?: boolean }>(
             "/api/generate_weekly_planning", {}, undefined, GENERATION_TIMEOUT_MS,
         );
         if (result.violations && result.violations.length > 0) {
             toast.warning("Ta semaine est prête, mais certaines règles ne sont pas respectées.");
         } else {
-            toast.success("Ta semaine est prête.");
+            toast.success(result.partial ? "Le reste de ta semaine est replanifié." : "Ta semaine est prête.");
         }
         notifySchedulerChanged();
         return true;
     } catch (error) {
+        if (error instanceof HttpError && error.status === 409) {
+            toast.info(error.detail ? `${error.detail}.` : "Il ne reste rien à planifier cette semaine.");
+            return false;
+        }
         toast.error(error instanceof DOMException && error.name === "TimeoutError"
             ? "La génération prend trop de temps. Réessaie dans quelques minutes."
             : "La génération a échoué. Réessaie dans quelques minutes.");
         return false;
+    } finally {
+        setGenerationRunning(false);
     }
 }
